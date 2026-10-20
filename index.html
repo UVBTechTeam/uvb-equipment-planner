@@ -1,0 +1,933 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UVB Equipment Planner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<style>
+:root{
+  --bg:#111214; --panel:#1a1b1e; --panel-2:#212327; --line:#2c2e33; --line-bright:#3a3d43;
+  --text:#e8e8e6; --text-dim:#9a9b9f; --text-faint:#63656b;
+  --amber:#e8a33d; --amber-dim:#5c4a29; --cyan:#4fd1c5; --cyan-dim:#1f4744;
+  --red:#e85d4c; --red-dim:#4a2620; --violet:#8b7bd8; --violet-dim:#332d54; --yellow:#d8cf6a;
+  --radius:6px;
+  --font-display:'Barlow Condensed',sans-serif; --font-body:'Inter',sans-serif; --font-mono:'JetBrains Mono',monospace;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;background:var(--bg);}
+body{color:var(--text);font-family:var(--font-body);}
+button{font-family:inherit;}
+input,select,textarea{background:var(--panel-2);border:1px solid var(--line);color:var(--text);border-radius:var(--radius);padding:7px 9px;font-family:var(--font-body);font-size:13px;width:100%;}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--amber);}
+::selection{background:var(--amber-dim);color:var(--amber);}
+.wrap{max-width:1640px;margin:0 auto;padding:16px 18px 50px;}
+
+/* buttons */
+.btn{font-weight:600;font-size:13px;border-radius:var(--radius);padding:7px 13px;cursor:pointer;border:1px solid var(--line-bright);background:var(--panel-2);color:var(--text);transition:.15s;white-space:nowrap;}
+.btn:hover{border-color:var(--amber);color:var(--amber);}
+.btn-primary{background:var(--amber);border-color:var(--amber);color:#1a1305;}
+.btn-primary:hover{background:#f2ae4a;color:#1a1305;}
+.btn-sm{padding:4px 10px;font-size:12px;}
+.btn:disabled{opacity:.4;cursor:not-allowed;}
+.btn.active{background:var(--amber-dim);border-color:var(--amber);color:var(--amber);}
+.icon-b{background:none;border:none;color:var(--text-faint);cursor:pointer;font-size:14px;padding:2px 5px;line-height:1;}
+.icon-b:hover{color:var(--amber);}
+.icon-b[data-delete]:hover,.icon-b[data-rm]:hover{color:var(--red);}
+
+/* header */
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding-bottom:14px;margin-bottom:14px;border-bottom:1px solid var(--line);}
+.brand{display:flex;align-items:center;gap:12px;}
+.brand-mark{font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--amber);background:var(--amber-dim);border:1px solid var(--amber-dim);padding:3px 7px;border-radius:3px;}
+.brand h1{font-family:var(--font-display);font-weight:600;font-size:26px;margin:0;text-transform:uppercase;letter-spacing:.01em;line-height:1;}
+.brand-sub{font-size:11.5px;color:var(--text-faint);font-family:var(--font-mono);margin-top:3px;}
+.brand-sub.err{color:var(--red);}
+.cf-btn{font-family:var(--font-mono);font-size:12px;padding:7px 12px;border-radius:var(--radius);cursor:pointer;border:1px solid var(--line-bright);background:var(--panel-2);}
+.cf-btn.ok{color:var(--cyan);border-color:var(--cyan-dim);}
+.cf-btn.warn{color:var(--yellow);border-color:#5a5630;}
+.cf-btn.bad{color:var(--red);border-color:var(--red);background:var(--red-dim);}
+
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px;}
+.toolbar select,.toolbar input{width:auto;}
+.month-label{font-family:var(--font-display);font-size:22px;text-transform:uppercase;font-weight:600;min-width:170px;text-align:center;}
+.seg{display:flex;gap:4px;}
+.spacer{flex:1;}
+
+/* layout */
+.layout{display:grid;grid-template-columns:320px minmax(0,1fr);gap:16px;align-items:start;}
+@media(max-width:960px){.layout{grid-template-columns:1fr;}.palette{position:static !important;max-height:340px !important;}}
+
+/* palette */
+.palette{position:sticky;top:12px;background:var(--panel);border:1px solid var(--line);border-radius:8px;display:flex;flex-direction:column;max-height:calc(100vh - 24px);overflow:hidden;}
+.pal-top{padding:12px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:9px;}
+.hired-tile{border:1px dashed var(--violet);background:var(--violet-dim);color:var(--violet);border-radius:8px;padding:10px 12px;cursor:grab;display:flex;align-items:center;gap:10px;user-select:none;}
+.hired-tile:hover{background:#3d3566;}
+.hired-tile b{font-family:var(--font-display);font-size:18px;text-transform:uppercase;letter-spacing:.02em;font-weight:600;display:block;line-height:1.1;}
+.hired-tile small{display:block;color:#b7aee6;font-size:11px;margin-top:2px;}
+.hired-tile .grip{font-size:18px;opacity:.8;}
+.pal-tabs{display:flex;gap:4px;}
+.ptab{flex:1;background:none;border:1px solid var(--line);color:var(--text-dim);font-family:var(--font-display);text-transform:uppercase;font-weight:600;font-size:15px;letter-spacing:.03em;padding:5px;border-radius:var(--radius);cursor:pointer;}
+.ptab.active{color:var(--amber);border-color:var(--amber);background:var(--amber-dim);}
+.chip-row{display:flex;gap:5px;flex-wrap:wrap;}
+.chip{background:var(--panel-2);border:1px solid var(--line);color:var(--text-dim);padding:3px 9px;border-radius:20px;font-size:11px;cursor:pointer;font-family:var(--font-mono);user-select:none;}
+.chip.active{background:var(--amber-dim);border-color:var(--amber);color:var(--amber);}
+.pal-list{overflow-y:auto;flex:1;min-height:140px;}
+.pal-group{position:sticky;top:0;background:var(--panel-2);font-family:var(--font-mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--amber);padding:5px 12px;border-bottom:1px solid var(--line);z-index:1;}
+.pal-row{display:flex;align-items:center;gap:6px;padding:7px 10px 7px 12px;border-bottom:1px solid var(--line);cursor:grab;border-left:3px solid var(--cyan);}
+.pal-row:hover{background:var(--panel-2);}
+.pal-row.hired{border-left-color:var(--violet);}
+.pal-row.oou{border-left-color:var(--red);opacity:.75;}
+.pal-main{flex:1;min-width:0;}
+.pal-name{font-size:12.5px;font-weight:600;line-height:1.25;}
+.pal-q{font-family:var(--font-mono);font-size:10.5px;color:var(--cyan);font-weight:500;}
+.pal-sub{font-size:10.5px;color:var(--text-faint);font-family:var(--font-mono);margin-top:1px;}
+.oou-t{color:var(--red);}
+.pal-hint{padding:8px 12px;border-top:1px solid var(--line);font-size:11px;color:var(--text-faint);}
+.empty{padding:22px 14px;text-align:center;color:var(--text-faint);font-size:12px;font-family:var(--font-mono);}
+
+/* main */
+.main-title{display:flex;align-items:baseline;gap:12px;margin-bottom:10px;flex-wrap:wrap;}
+.main-title h2{font-family:var(--font-display);text-transform:uppercase;font-size:26px;margin:0;font-weight:600;}
+.main-title span{color:var(--text-faint);font-family:var(--font-mono);font-size:12px;}
+.cal-wrap{overflow-x:auto;padding-bottom:6px;}
+.cal{display:grid;grid-template-columns:repeat(7,minmax(128px,1fr));gap:6px;min-width:900px;}
+.dow-h{font-family:var(--font-mono);font-size:10.5px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.08em;padding:2px 4px;}
+.day-cell{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:6px;min-height:150px;display:flex;flex-direction:column;gap:4px;min-width:0;}
+.day-cell.blank{background:transparent;border:none;}
+.day-cell.weekend{background:#16171a;}
+.day-cell.today{border-color:var(--amber);}
+.day-cell.drop-over,.ov td.drop-over{outline:2px dashed var(--amber);outline-offset:-2px;background:var(--amber-dim) !important;}
+.day-cell.flash{animation:flash 1.4s ease-out;}
+@keyframes flash{0%,40%{box-shadow:0 0 0 3px var(--amber);}100%{box-shadow:0 0 0 0 transparent;}}
+.day-head{display:flex;align-items:center;justify-content:space-between;}
+.dnum{background:none;border:none;color:var(--text);font-family:var(--font-display);font-size:19px;font-weight:600;cursor:pointer;padding:0 2px;line-height:1;}
+.dnum:hover{color:var(--amber);}
+.dcount{font-family:var(--font-mono);font-size:10px;color:var(--text-faint);}
+.mini-in{padding:3px 6px;font-size:11.5px;}
+.mini-in.ev{border-left:3px solid var(--amber);}
+.mini-in.lay{border-left:3px solid var(--cyan);}
+.bks{display:flex;flex-direction:column;gap:3px;margin-top:2px;}
+.bk{display:flex;align-items:center;gap:4px;background:var(--panel-2);border:1px solid var(--line-bright);border-left:3px solid var(--cyan);border-radius:4px;padding:3px 3px 3px 6px;font-size:11.5px;cursor:grab;min-width:0;}
+.bk.hired{border-left-color:var(--violet);}
+.bk.warn{border-left-color:var(--yellow);}
+.bk.bad{border-color:var(--red);border-left-color:var(--red);background:var(--red-dim);}
+.bk.gone{opacity:.6;font-style:italic;}
+.bn{flex:1;min-width:0;}
+.bname{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.bq{font-family:var(--font-mono);font-size:10.5px;color:var(--cyan);margin-left:4px;}
+.bsub{display:block;font-size:9.5px;color:var(--text-faint);font-family:var(--font-mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.bwarn{color:var(--red);font-weight:700;font-size:12px;}
+.bk.warn .bwarn{color:var(--yellow);}
+.bx{background:none;border:none;color:var(--text-faint);cursor:pointer;font-size:14px;line-height:1;padding:0 3px;}
+.bx:hover{color:var(--red);}
+
+/* overview */
+.ov-wrap{overflow:auto;border:1px solid var(--line);border-radius:8px;max-height:calc(100vh - 190px);}
+table.ov{border-collapse:separate;border-spacing:0;font-size:11px;}
+.ov th,.ov td{border-right:1px solid var(--line);border-bottom:1px solid var(--line);}
+.ov thead th{position:sticky;top:0;background:var(--panel);z-index:3;font-family:var(--font-mono);font-weight:500;color:var(--text-dim);padding:4px 0;min-width:34px;text-align:center;}
+.ov thead th.corner{left:0;z-index:5;min-width:160px;text-align:left;padding-left:10px;}
+.ov thead th.wk{color:var(--text-faint);}
+.ov thead th.today{color:var(--amber);}
+.ov th.rn{position:sticky;left:0;background:var(--panel);z-index:2;text-align:left;padding:6px 10px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;}
+.ov th.rn:hover{color:var(--amber);}
+.ov td.c{height:30px;text-align:center;cursor:pointer;color:var(--text-faint);}
+.ov td.c.wk{background:#16171a;}
+.ov td.c.today{box-shadow:inset 0 0 0 1px var(--amber);}
+.ov td.c.has{background:var(--cyan-dim);color:var(--cyan);font-weight:700;}
+.ov td.c.warn{background:#3b391d;color:var(--yellow);}
+.ov td.c.bad{background:var(--red-dim);color:var(--red);}
+.ov td.c:hover{filter:brightness(1.35);}
+
+/* modal */
+.overlay{position:fixed;inset:0;background:rgba(8,8,9,.75);display:none;align-items:center;justify-content:center;z-index:100;padding:20px;backdrop-filter:blur(2px);}
+.overlay.active{display:flex;}
+.modal{background:var(--panel);border:1px solid var(--line-bright);border-radius:8px;width:100%;max-width:640px;max-height:90vh;overflow-y:auto;}
+.modal-head{display:flex;justify-content:space-between;align-items:flex-start;padding:14px 18px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--panel);z-index:2;}
+.modal-head h2{font-family:var(--font-display);text-transform:uppercase;font-size:21px;margin:0;font-weight:600;}
+.m-sub{font-size:12px;color:var(--text-faint);font-family:var(--font-mono);margin-top:2px;}
+.close-x{background:none;border:none;color:var(--text-dim);font-size:20px;cursor:pointer;line-height:1;}
+.close-x:hover{color:var(--text);}
+.modal-body{padding:18px;}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 12px;}
+.field{display:flex;flex-direction:column;gap:4px;margin-bottom:12px;}
+.field label{font-size:10.5px;color:var(--text-faint);font-family:var(--font-mono);text-transform:uppercase;letter-spacing:.05em;}
+.span2{grid-column:1/-1;}
+.section-label{font-family:var(--font-mono);font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--amber);margin:16px 0 8px;}
+.modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px;padding-top:14px;border-top:1px solid var(--line);}
+.dm-search{display:flex;gap:8px;margin-bottom:8px;}
+.dm-row{display:flex;align-items:center;gap:8px;padding:7px 8px;border-bottom:1px solid var(--line);}
+.dm-row.bad{background:var(--red-dim);}
+.dm-row.warn{background:#2c2a18;}
+.dm-main{flex:1;min-width:0;}
+.dm-name{font-size:13px;font-weight:600;}
+.dm-sub{font-size:11px;color:var(--text-faint);font-family:var(--font-mono);}
+.dm-warn{font-size:11px;color:var(--red);margin-top:2px;}
+.dm-row.warn .dm-warn{color:var(--yellow);}
+.dm-q{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-faint);font-family:var(--font-mono);}
+.dm-q input{width:60px;padding:4px 6px;}
+.tag-h{font-family:var(--font-mono);font-size:10px;color:var(--violet);border:1px solid var(--violet-dim);border-radius:3px;padding:0 4px;}
+.cf-month{font-family:var(--font-mono);font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-faint);margin:14px 0 6px;}
+.cf-row{display:flex;gap:12px;padding:9px 10px;border:1px solid var(--line);border-left:3px solid var(--red);border-radius:5px;margin-bottom:6px;cursor:pointer;background:var(--panel-2);}
+.cf-row.hire{border-left-color:var(--yellow);}
+.cf-row:hover{border-color:var(--amber);}
+.cf-date{font-family:var(--font-mono);font-size:12px;color:var(--amber);min-width:52px;}
+.cf-t{font-size:13px;font-weight:600;}
+.cf-m{font-size:12px;color:var(--text-dim);margin-top:2px;}
+
+.toast{position:fixed;bottom:20px;right:20px;background:var(--panel-2);border:1px solid var(--amber);color:var(--text);padding:11px 16px;border-radius:6px;font-size:13px;z-index:300;box-shadow:0 6px 20px rgba(0,0,0,.4);opacity:0;transform:translateY(8px);transition:.2s;pointer-events:none;max-width:380px;}
+.toast.show{opacity:1;transform:translateY(0);}
+::-webkit-scrollbar{width:9px;height:9px;}
+::-webkit-scrollbar-track{background:var(--bg);}
+::-webkit-scrollbar-thumb{background:var(--line-bright);border-radius:5px;}
+
+#lockScreen{position:fixed;inset:0;background:var(--bg);z-index:500;display:flex;align-items:center;justify-content:center;color:var(--text);}
+.lock-box{width:100%;max-width:300px;text-align:center;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:28px 24px;}
+.lock-box h2{font-family:var(--font-display);text-transform:uppercase;font-size:22px;margin:0 0 4px;font-weight:600;}
+.lock-box p{color:var(--text-faint);font-size:12.5px;margin:0 0 16px;}
+.lock-box input{margin-bottom:10px;text-align:center;}
+.lock-box .btn{width:100%;}
+#lockError{display:none;color:var(--red);font-size:12px;margin-top:10px;font-family:var(--font-mono);}
+#lockError.show{display:block;}
+</style>
+</head>
+<body>
+
+<!-- Simple password screen — same idea as the inventory app. Change SITE_PASSWORD in the script. -->
+<div id="lockScreen">
+  <div class="lock-box">
+    <div class="brand-mark" style="display:inline-block;margin-bottom:14px;">UVB</div>
+    <h2>Equipment Planner</h2>
+    <p>Enter the team password to continue.</p>
+    <input type="password" id="lockPassword" placeholder="Password" autocomplete="off">
+    <button class="btn btn-primary" id="lockSubmit">Enter</button>
+    <div id="lockError">Incorrect password — try again.</div>
+  </div>
+</div>
+
+<div id="app" style="display:none;">
+<div class="wrap">
+
+  <div class="topbar">
+    <div class="brand">
+      <span class="brand-mark">UVB</span>
+      <div>
+        <h1>Equipment Planner</h1>
+        <div class="brand-sub" id="syncState">Connecting…</div>
+      </div>
+    </div>
+    <button class="cf-btn ok" id="conflictBtn">✓ No clashes this month</button>
+  </div>
+
+  <div class="toolbar">
+    <div class="seg">
+      <button class="btn" id="prevMonth">‹</button>
+      <button class="btn" id="todayBtn">Today</button>
+      <button class="btn" id="nextMonth">›</button>
+    </div>
+    <div class="month-label" id="monthLabel"></div>
+    <input type="month" id="monthPick" title="Jump to month">
+    <div class="seg">
+      <button class="btn active" data-view="room">Room calendar</button>
+      <button class="btn" data-view="overview">All rooms overview</button>
+    </div>
+    <div id="roomSelWrap"><select id="roomSel"></select></div>
+    <div class="spacer"></div>
+    <button class="btn" id="printBtn">Print / PDF</button>
+  </div>
+
+  <div class="layout">
+    <aside class="palette">
+      <div class="pal-top">
+        <div class="hired-tile" id="hiredTile" draggable="true" title="Drag onto a room/day, or click to add a hired item to the list">
+          <span class="grip">⠿</span>
+          <div><b>Hired equipment</b><small>Drag onto a day — or click to add to the list</small></div>
+        </div>
+        <div class="pal-tabs">
+          <button class="ptab active" data-ptab="kit">Our kit</button>
+          <button class="ptab" data-ptab="hired">Hired <span id="hiredCount"></span></button>
+        </div>
+        <input id="palSearch" placeholder="Search…">
+        <div id="kitControls">
+          <div class="chip-row" id="palChips" style="margin-bottom:8px;"></div>
+          <button class="btn btn-sm" id="addEquipBtn">+ Add equipment</button>
+        </div>
+        <div id="hiredControls" style="display:none;">
+          <button class="btn btn-sm" id="addHiredBtn">+ New hired item</button>
+        </div>
+      </div>
+      <div class="pal-list" id="palList"></div>
+      <div class="pal-hint">Drag onto a day. The same item can go in as many rooms and dates as you like. Click a date number to add by search.</div>
+    </aside>
+
+    <main id="main"></main>
+  </div>
+</div>
+</div>
+
+<datalist id="catList"></datalist>
+<div class="overlay" id="overlay"><div class="modal" id="modalBox"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============ CONFIG ============
+   Same Firebase project as the inventory app. The planner READS the live inventory (items) and
+   keeps its own data under "planner/" so it never overwrites anything in the inventory app. */
+const firebaseConfig = {
+  apiKey: "AIzaSyD3d_iwmO5101-270cCtb8GxGpojPlrrsI",
+  authDomain: "uvb-tech-inventory-71ac5.firebaseapp.com",
+  databaseURL: "https://uvb-tech-inventory-71ac5-default-rtdb.firebaseio.com",
+  projectId: "uvb-tech-inventory-71ac5",
+  storageBucket: "uvb-tech-inventory-71ac5.firebasestorage.app",
+  messagingSenderId: "25318445009",
+  appId: "1:25318445009:web:b1eac7df2f649ae6ee9af0"
+};
+const SEED_ITEMS = [{"id": "itm-0001", "manufacturer": "Sennheiser", "model": "EM 100 G4 Handheld Microphone", "category": "Sound", "scanCode": "UVB-001", "quantity": 1, "status": "Available"}, {"id": "itm-0002", "manufacturer": "Sennheiser", "model": "EM 100 G4 Handheld Microphone", "category": "Sound", "scanCode": "UVB-002", "quantity": 1, "status": "Available"}, {"id": "itm-0003", "manufacturer": "Sennheiser", "model": "EM 100 G4 Bodypack Lapel w/Tie Clip", "category": "Sound", "scanCode": "UVB-003", "quantity": 1, "status": "Available"}, {"id": "itm-0004", "manufacturer": "Sennheiser", "model": "EM 100 G4 Bodypack Lapel w/Tie Clip", "category": "Sound", "scanCode": "UVB-004", "quantity": 1, "status": "Available"}, {"id": "itm-0005", "manufacturer": "Sennheiser", "model": "EM 100 G4 Bodypack Lapel w/Tie Clip", "category": "Sound", "scanCode": "UVB-005", "quantity": 1, "status": "Available"}, {"id": "itm-0006", "manufacturer": "Sennheiser", "model": "EM 100 G4 Bodypack Lapel w/Tie Clip", "category": "Sound", "scanCode": "UVB-006", "quantity": 1, "status": "Available"}, {"id": "itm-0007", "manufacturer": "Sennheiser", "model": "EM 100 G4 Receiver", "category": "Sound", "scanCode": "UVB-007", "quantity": 1, "status": "Available"}, {"id": "itm-0008", "manufacturer": "Sennheiser", "model": "EM 100 G4 Receiver", "category": "Sound", "scanCode": "UVB-008", "quantity": 1, "status": "Available"}, {"id": "itm-0009", "manufacturer": "Sennheiser", "model": "EM 100 G4 Receiver", "category": "Sound", "scanCode": "UVB-009", "quantity": 1, "status": "Available"}, {"id": "itm-0010", "manufacturer": "ASUS", "model": "V16 Intel(R) Core 5 210 H", "category": "Misc", "scanCode": "UVB-010", "quantity": 1, "status": "Available"}, {"id": "itm-0011", "manufacturer": "ASUS", "model": "V16 Intel(R) Core 5 210 H", "category": "Misc", "scanCode": "UVB-011", "quantity": 1, "status": "Available"}, {"id": "itm-0012", "manufacturer": "ASUS", "model": "V16 Intel(R) Core 5 210 H", "category": "Misc", "scanCode": "UVB-012", "quantity": 1, "status": "Available"}, {"id": "itm-0013", "manufacturer": "ASUS", "model": "V16 Intel(R) Core 5 210 H", "category": "Misc", "scanCode": "UVB-013", "quantity": 1, "status": "Available"}, {"id": "itm-0014", "manufacturer": "ASUS", "model": "V16 PSU", "category": "Cable", "scanCode": "UVB-014", "quantity": 1, "status": "Available"}, {"id": "itm-0015", "manufacturer": "ASUS", "model": "V16 PSU", "category": "Cable", "scanCode": "UVB-015", "quantity": 1, "status": "Available"}, {"id": "itm-0016", "manufacturer": "ASUS", "model": "V16 PSU", "category": "Cable", "scanCode": "UVB-016", "quantity": 1, "status": "Available"}, {"id": "itm-0017", "manufacturer": "Apple", "model": "M4 Mac Mini", "category": "Misc", "scanCode": "UVB-017", "quantity": 1, "status": "Available"}, {"id": "itm-0018", "manufacturer": "Apple", "model": "Mac Mini Intel Processor", "category": "Misc", "scanCode": "UVB-018", "quantity": 1, "status": "Available"}, {"id": "itm-0019", "manufacturer": "Sennheiser", "model": "ew100 G3 Handheld Microphone", "category": "Sound", "scanCode": "UVB-019", "quantity": 1, "status": "Available"}, {"id": "itm-0020", "manufacturer": "Sennheiser", "model": "ew100 G3 Handheld Microphone", "category": "Sound", "scanCode": "UVB-020", "quantity": 1, "status": "Available"}, {"id": "itm-0021", "manufacturer": "Sennheiser", "model": "ew100 G3 Handheld Microphone", "category": "Sound", "scanCode": "UVB-021", "quantity": 1, "status": "Available"}, {"id": "itm-0022", "manufacturer": "Sennheiser", "model": "ew100 G3 Handheld Microphone", "category": "Sound", "scanCode": "UVB-022", "quantity": 1, "status": "Available"}, {"id": "itm-0023", "manufacturer": "Sennheiser", "model": "ew100 G3 Receiver", "category": "Sound", "scanCode": "UVB-023", "quantity": 1, "status": "Available"}, {"id": "itm-0024", "manufacturer": "Sennheiser", "model": "ew100 G3 Receiver", "category": "Sound", "scanCode": "UVB-024", "quantity": 1, "status": "Available"}, {"id": "itm-0025", "manufacturer": "Sennheiser", "model": "ew100 G3 Bodypack Lapel", "category": "Sound", "scanCode": "UVB-025", "quantity": 1, "status": "Available"}, {"id": "itm-0026", "manufacturer": "Sennheiser", "model": "ew100 G3 Bodypack Lapel", "category": "Sound", "scanCode": "UVB-026", "quantity": 1, "status": "Available"}, {"id": "itm-0027", "manufacturer": "Sennheiser", "model": "ew100 G3 Bodypack Lapel", "category": "Sound", "scanCode": "UVB-027", "quantity": 1, "status": "Available"}, {"id": "itm-0028", "manufacturer": "Sennheiser", "model": "ew100 G3 Bodypack Lapel", "category": "Sound", "scanCode": "UVB-028", "quantity": 1, "status": "Available"}, {"id": "itm-0029", "manufacturer": "Klark Teknik", "model": "DN200 Active Stereo DI Box", "category": "Sound", "scanCode": "UVB-029", "quantity": 1, "status": "Available"}, {"id": "itm-0030", "manufacturer": "Klark Teknik", "model": "DN200 Active Stereo DI Box", "category": "Sound", "scanCode": "UVB-030", "quantity": 1, "status": "Available"}, {"id": "itm-0031", "manufacturer": "Behringer", "model": "Ultra-DI (DI100)", "category": "Sound", "scanCode": "UVB-031", "quantity": 1, "status": "Available"}, {"id": "itm-0032", "manufacturer": "Behringer", "model": "Ultra-DI (DI100)", "category": "Sound", "scanCode": "UVB-032", "quantity": 1, "status": "Available"}, {"id": "itm-0033", "manufacturer": "AKG", "model": "PT470 Pocket Transmitter Lapel", "category": "Sound", "scanCode": "UVB-033", "quantity": 1, "status": "Available"}, {"id": "itm-0034", "manufacturer": "AKG", "model": "PT470 Pocket Transmitter Lapel", "category": "Sound", "scanCode": "UVB-034", "quantity": 1, "status": "Available"}, {"id": "itm-0035", "manufacturer": "AKG", "model": "CU400 Lapel Charging Unit", "category": "Sound", "scanCode": "UVB-035", "quantity": 1, "status": "Available"}, {"id": "itm-0036", "manufacturer": "AKG", "model": "ST6 Lectern Microphone", "category": "Sound", "scanCode": "UVB-036", "quantity": 1, "status": "Available"}, {"id": "itm-0037", "manufacturer": "AKG", "model": "ST6 Lectern Microphone", "category": "Sound", "scanCode": "UVB-037", "quantity": 1, "status": "Available"}, {"id": "itm-0038", "manufacturer": "AKG", "model": "CGN321 STS Lectern Microphone", "category": "Sound", "scanCode": "UVB-038", "quantity": 1, "status": "Available"}, {"id": "itm-0039", "manufacturer": "AKG", "model": "CGN321 STS Lectern Microphone", "category": "Sound", "scanCode": "UVB-039", "quantity": 1, "status": "Available"}, {"id": "itm-0040", "manufacturer": "Logitech", "model": "Meetup Webcam", "category": "Video", "scanCode": "UVB-040", "quantity": 1, "status": "Available"}, {"id": "itm-0041", "manufacturer": "Logitech", "model": "Meetup Webcam", "category": "Video", "scanCode": "UVB-041", "quantity": 1, "status": "Available"}, {"id": "itm-0042", "manufacturer": "Logitech", "model": "Echo Cancelling Microphone", "category": "Misc", "scanCode": "UVB-042", "quantity": 1, "status": "Available"}, {"id": "itm-0043", "manufacturer": "Logitech", "model": "Echo Cancelling Microphone", "category": "Misc", "scanCode": "UVB-043", "quantity": 1, "status": "Available"}, {"id": "itm-0044", "manufacturer": "Logitech", "model": "Meetup Remote", "category": "Misc", "scanCode": "UVB-044", "quantity": 1, "status": "Available"}, {"id": "itm-0045", "manufacturer": "Logitech", "model": "Meetup Remote", "category": "Misc", "scanCode": "UVB-045", "quantity": 1, "status": "Available"}, {"id": "itm-0046", "manufacturer": "Soundcraft", "model": "EPM8 Mixer", "category": "Sound", "scanCode": "UVB-046", "quantity": 1, "status": "Available"}, {"id": "itm-0047", "manufacturer": "D-Link", "model": "8-Way Switch", "category": "Network", "scanCode": "UVB-047", "quantity": 1, "status": "Available"}, {"id": "itm-0048", "manufacturer": "Unknown", "model": "4-Way HDMI Distro Amplifier", "category": "Video", "scanCode": "UVB-048", "quantity": 1, "status": "Available"}, {"id": "itm-0049", "manufacturer": "Unknown", "model": "SDI to HDMI 4k MiniConverter", "category": "Video", "scanCode": "UVB-049", "quantity": 1, "status": "Available"}, {"id": "itm-0050", "manufacturer": "Unknown", "model": "Comfort Monitor Hide", "category": "Video", "scanCode": "UVB-050", "quantity": 1, "status": "Available"}, {"id": "itm-0051", "manufacturer": "Hisense", "model": "UHD 6 Series 43\" TV", "category": "Video", "scanCode": "UVB-051", "quantity": 1, "status": "Available"}, {"id": "itm-0052", "manufacturer": "Pro Signal", "model": "HDMI 4K Splitter RX", "category": "Video", "scanCode": "UVB-052", "quantity": 1, "status": "Available"}, {"id": "itm-0053", "manufacturer": "LabGear", "model": "70m HDMI Splitter/Extender TX", "category": "Video", "scanCode": "UVB-053", "quantity": 1, "status": "Available"}, {"id": "itm-0054", "manufacturer": "LabGear", "model": "HDMI Splitter/Extender RX", "category": "Video", "scanCode": "UVB-054", "quantity": 1, "status": "Available"}, {"id": "itm-0055", "manufacturer": "StarTech", "model": "2-Port HDMI Splitter", "category": "Video", "scanCode": "UVB-055", "quantity": 1, "status": "Available"}, {"id": "itm-0056", "manufacturer": "Unknown", "model": "USB-C to 3.5mm Aux Adapter", "category": "Sound", "scanCode": "UVB-056", "quantity": 2, "status": "Available"}, {"id": "itm-0057", "manufacturer": "Unknown", "model": "Lightning to 3.5mm Aux Adapter", "category": "Sound", "scanCode": "UVB-057", "quantity": 2, "status": "Available"}, {"id": "itm-0058", "manufacturer": "LG", "model": "49\" TV on Wheels w/Shelf", "category": "Video", "scanCode": "UVB-058", "quantity": 1, "status": "Available"}, {"id": "itm-0059", "manufacturer": "LG", "model": "49\" TV on Wheels w/Shelf", "category": "Video", "scanCode": "UVB-059", "quantity": 1, "status": "Available"}, {"id": "itm-0060", "manufacturer": "LG", "model": "49\" TV on Wheels w/Shelf", "category": "Video", "scanCode": "UVB-060", "quantity": 1, "status": "Available"}, {"id": "itm-0061", "manufacturer": "ADJ", "model": "Element QAIP Uplighter", "category": "Lighting", "scanCode": "UVB-061", "quantity": 1, "status": "Available"}, {"id": "itm-0062", "manufacturer": "ADJ", "model": "Element QAIP Uplighter", "category": "Lighting", "scanCode": "UVB-062", "quantity": 1, "status": "Available"}, {"id": "itm-0063", "manufacturer": "ADJ", "model": "Element QAIP Uplighter", "category": "Lighting", "scanCode": "UVB-063", "quantity": 1, "status": "Available"}, {"id": "itm-0064", "manufacturer": "ADJ", "model": "Element QAIP Uplighter", "category": "Lighting", "scanCode": "UVB-064", "quantity": 1, "status": "Available"}, {"id": "itm-0065", "manufacturer": "ADJ", "model": "Element QAIP Uplighter", "category": "Lighting", "scanCode": "UVB-065", "quantity": 1, "status": "Available"}, {"id": "itm-0066", "manufacturer": "ADJ", "model": "Element QAIP Uplighter", "category": "Lighting", "scanCode": "UVB-066", "quantity": 1, "status": "Available"}, {"id": "itm-0067", "manufacturer": "ADJ", "model": "Element QAIP Uplighter", "category": "Lighting", "scanCode": "UVB-067", "quantity": 1, "status": "Available"}, {"id": "itm-0068", "manufacturer": "ADJ", "model": "Element QAIP Uplighter", "category": "Lighting", "scanCode": "UVB-068", "quantity": 1, "status": "Available"}, {"id": "itm-0069", "manufacturer": "ADJ", "model": "Element QAIP Uplighter", "category": "Lighting", "scanCode": "UVB-069", "quantity": 1, "status": "Available"}, {"id": "itm-0070", "manufacturer": "Apple", "model": "iPad (9th Generation)", "category": "Misc", "scanCode": "UVB-070", "quantity": 1, "status": "Available"}, {"id": "itm-0071", "manufacturer": "Contacta", "model": "Portable Hearing Loop", "category": "Sound", "scanCode": "UVB-071", "quantity": 1, "status": "Available"}, {"id": "itm-0072", "manufacturer": "Unknown", "model": "Portable Hearing Loop", "category": "Sound", "scanCode": "UVB-072", "quantity": 1, "status": "Available"}, {"id": "itm-0073", "manufacturer": "Catchbox", "model": "Microphone", "category": "Misc", "scanCode": "UVB-073", "quantity": 1, "status": "Available"}, {"id": "itm-0074", "manufacturer": "Catchbox", "model": "Microphone", "category": "Misc", "scanCode": "UVB-074", "quantity": 1, "status": "Available"}, {"id": "itm-0075", "manufacturer": "Catchbox", "model": "Microphone", "category": "Misc", "scanCode": "UVB-075", "quantity": 1, "status": "Available"}, {"id": "itm-0076", "manufacturer": "HP Laptop", "model": "UVBLTP010", "category": "Misc", "scanCode": "UVB-076", "quantity": 1, "status": "Available"}, {"id": "itm-0077", "manufacturer": "HP Laptop", "model": "UVBLTP011", "category": "Misc", "scanCode": "UVB-077", "quantity": 1, "status": "Available"}, {"id": "itm-0078", "manufacturer": "TENMA", "model": "Cable Tester", "category": "Misc", "scanCode": "UVB-078", "quantity": 1, "status": "Available"}, {"id": "itm-0079", "manufacturer": "Epson", "model": "EB-992F Projector", "category": "Video", "scanCode": "UVB-079", "quantity": 1, "status": "Available"}, {"id": "itm-0080", "manufacturer": "Unknown", "model": "HDMI Fibre Cable (On Reel)", "category": "Cable", "scanCode": "UVB-080", "quantity": 1, "status": "Available"}, {"id": "itm-0081", "manufacturer": "Unknown", "model": "Cable Tester", "category": "Misc", "scanCode": "UVB-081", "quantity": 1, "status": "Available"}, {"id": "itm-0082", "manufacturer": "Fischer Amps", "model": "Battery Charger", "category": "Misc", "scanCode": "UVB-082", "quantity": 1, "status": "Available"}, {"id": "itm-0083", "manufacturer": "Unknown", "model": "Ethercon Cable (On Reel)", "category": "Cable", "scanCode": "UVB-083", "quantity": 1, "status": "Available"}, {"id": "itm-0084", "manufacturer": "Prolyte", "model": "2m x 1m Stage Deck", "category": "Staging", "scanCode": "UVB-084", "quantity": 1, "status": "Available"}, {"id": "itm-0085", "manufacturer": "Prolyte", "model": "2m x 1m Stage Deck", "category": "Staging", "scanCode": "UVB-085", "quantity": 1, "status": "Available"}, {"id": "itm-0086", "manufacturer": "Prolyte", "model": "2m x 1m Stage Deck", "category": "Staging", "scanCode": "UVB-086", "quantity": 1, "status": "Available"}, {"id": "itm-0087", "manufacturer": "Prolyte", "model": "2m x 1m Stage Deck", "category": "Staging", "scanCode": "UVB-087", "quantity": 1, "status": "Available"}, {"id": "itm-0088", "manufacturer": "Prolyte", "model": "2m x 1m Stage Deck", "category": "Staging", "scanCode": "UVB-088", "quantity": 1, "status": "Available"}, {"id": "itm-0089", "manufacturer": "Prolyte", "model": "2m x 1m Stage Deck", "category": "Staging", "scanCode": "UVB-089", "quantity": 1, "status": "Available"}, {"id": "itm-0090", "manufacturer": "Prolyte", "model": "2m x 1m Stage Deck", "category": "Staging", "scanCode": "UVB-090", "quantity": 1, "status": "Available"}, {"id": "itm-0091", "manufacturer": "Prolyte", "model": "2m x 1m Stage Deck", "category": "Staging", "scanCode": "UVB-091", "quantity": 1, "status": "Available"}, {"id": "itm-0092", "manufacturer": "Prolyte", "model": "2m x 1m Stage Deck", "category": "Staging", "scanCode": "UVB-092", "quantity": 1, "status": "Available"}, {"id": "itm-0093", "manufacturer": "N/A", "model": "30cm Stage Legs", "category": "Staging", "scanCode": "UVB-093", "quantity": 36, "status": "Available"}, {"id": "itm-0094", "manufacturer": "Revo", "model": "2m x 1m Stage Deck", "category": "Staging", "scanCode": "UVB-094", "quantity": 1, "status": "Available"}, {"id": "itm-0095", "manufacturer": "Revo", "model": "2m x 1m Stage Deck", "category": "Staging", "scanCode": "UVB-095", "quantity": 1, "status": "Available"}, {"id": "itm-0096", "manufacturer": "Revo", "model": "2m x 1m Stage Deck", "category": "Staging", "scanCode": "UVB-096", "quantity": 1, "status": "Available"}, {"id": "itm-0097", "manufacturer": "Revo", "model": "2m x 1m Stage Deck", "category": "Staging", "scanCode": "UVB-097", "quantity": 1, "status": "Available"}, {"id": "itm-0098", "manufacturer": "Revo", "model": "2m x 1m Stage Deck", "category": "Staging", "scanCode": "UVB-098", "quantity": 1, "status": "Available"}, {"id": "itm-0099", "manufacturer": "Revo", "model": "Legs/Bases for Deck", "category": "Staging", "scanCode": "UVB-099", "quantity": 1, "status": "Available"}, {"id": "itm-0100", "manufacturer": "Revo", "model": "Legs/Bases for Deck", "category": "Staging", "scanCode": "UVB-100", "quantity": 1, "status": "Available"}, {"id": "itm-0101", "manufacturer": "Revo", "model": "Legs/Bases for Deck", "category": "Staging", "scanCode": "UVB-101", "quantity": 1, "status": "Available"}, {"id": "itm-0102", "manufacturer": "Revo", "model": "Legs/Bases for Deck", "category": "Staging", "scanCode": "UVB-102", "quantity": 1, "status": "Available"}, {"id": "itm-0103", "manufacturer": "Revo", "model": "Legs/Bases for Deck", "category": "Staging", "scanCode": "UVB-103", "quantity": 1, "status": "Available"}, {"id": "itm-0104", "manufacturer": "N/A", "model": "Stage Step", "category": "Staging", "scanCode": "UVB-104", "quantity": 2, "status": "Available"}, {"id": "itm-0105", "manufacturer": "N/A", "model": "Carpeted Stage Step", "category": "Staging", "scanCode": "UVB-105", "quantity": 1, "status": "Available"}, {"id": "itm-0106", "manufacturer": "MR GO", "model": "Light Box - Centrepiece", "category": "Misc", "scanCode": "UVB-106", "quantity": 1, "status": "Available"}, {"id": "itm-0107", "manufacturer": "MR GO", "model": "Light Box - Centrepiece", "category": "Misc", "scanCode": "UVB-107", "quantity": 1, "status": "Available"}, {"id": "itm-0108", "manufacturer": "MR GO", "model": "Light Box - Centrepiece", "category": "Misc", "scanCode": "UVB-108", "quantity": 1, "status": "Available"}, {"id": "itm-0109", "manufacturer": "MR GO", "model": "Light Box - Centrepiece", "category": "Misc", "scanCode": "UVB-109", "quantity": 1, "status": "Available"}, {"id": "itm-0110", "manufacturer": "MR GO", "model": "Light Box - Centrepiece", "category": "Misc", "scanCode": "UVB-110", "quantity": 1, "status": "Available"}, {"id": "itm-0111", "manufacturer": "MR GO", "model": "Light Box - Centrepiece", "category": "Misc", "scanCode": "UVB-111", "quantity": 1, "status": "Available"}, {"id": "itm-0112", "manufacturer": "MR GO", "model": "Light Box - Centrepiece", "category": "Misc", "scanCode": "UVB-112", "quantity": 1, "status": "Available"}, {"id": "itm-0113", "manufacturer": "MR GO", "model": "Light Box - Centrepiece", "category": "Misc", "scanCode": "UVB-113", "quantity": 1, "status": "Available"}, {"id": "itm-0114", "manufacturer": "MR GO", "model": "Light Box - Centrepiece", "category": "Misc", "scanCode": "UVB-114", "quantity": 1, "status": "Available"}, {"id": "itm-0115", "manufacturer": "MR GO", "model": "Light Box - Centrepiece", "category": "Misc", "scanCode": "UVB-115", "quantity": 1, "status": "Available"}, {"id": "itm-0116", "manufacturer": "MR GO", "model": "Light Box - Centrepiece", "category": "Misc", "scanCode": "UVB-116", "quantity": 1, "status": "Available"}, {"id": "itm-0117", "manufacturer": "MR GO", "model": "Light Box - Centrepiece", "category": "Misc", "scanCode": "UVB-117", "quantity": 1, "status": "Available"}, {"id": "itm-0118", "manufacturer": "MR GO", "model": "Light Box - Centrepiece", "category": "Misc", "scanCode": "UVB-118", "quantity": 1, "status": "Available"}, {"id": "itm-0119", "manufacturer": "MR GO", "model": "Light Box - Centrepiece", "category": "Misc", "scanCode": "UVB-119", "quantity": 1, "status": "Available"}, {"id": "itm-0120", "manufacturer": "MR GO", "model": "Light Box - Centrepiece", "category": "Misc", "scanCode": "UVB-120", "quantity": 1, "status": "Available"}, {"id": "itm-0121", "manufacturer": "MR GO", "model": "Light Box - Centrepiece", "category": "Misc", "scanCode": "UVB-121", "quantity": 1, "status": "Available"}, {"id": "itm-0122", "manufacturer": "MR GO", "model": "Light Box - Centrepiece", "category": "Misc", "scanCode": "UVB-122", "quantity": 1, "status": "Available"}, {"id": "itm-0123", "manufacturer": "MR GO", "model": "Light Box - Centrepiece", "category": "Misc", "scanCode": "UVB-123", "quantity": 1, "status": "Available"}, {"id": "itm-0124", "manufacturer": "MR GO", "model": "Light Box - Centrepiece", "category": "Misc", "scanCode": "UVB-124", "quantity": 1, "status": "Available"}, {"id": "itm-0125", "manufacturer": "MR GO", "model": "Light Box - Centrepiece", "category": "Misc", "scanCode": "UVB-125", "quantity": 1, "status": "Available"}, {"id": "itm-0126", "manufacturer": "MR GO", "model": "Light Box Chargers", "category": "Cable", "scanCode": "UVB-126", "quantity": 20, "status": "Available"}, {"id": "itm-0127", "manufacturer": "InFocus", "model": "DLP Projector", "category": "Video", "scanCode": "UVB-127", "quantity": 1, "status": "Available"}, {"id": "itm-0128", "manufacturer": "InFocus", "model": "IN114X Projector", "category": "Video", "scanCode": "UVB-128", "quantity": 1, "status": "Available"}, {"id": "itm-0129", "manufacturer": "Epson", "model": "EB-W02 Projector", "category": "Video", "scanCode": "UVB-129", "quantity": 1, "status": "Available"}, {"id": "itm-0130", "manufacturer": "InFocus", "model": "IN126ST Projector", "category": "Video", "scanCode": "UVB-130", "quantity": 1, "status": "Available"}, {"id": "itm-0131", "manufacturer": "Electro-Voice", "model": "ZLX-15P", "category": "Sound", "scanCode": "UVB-131", "quantity": 1, "status": "Available"}, {"id": "itm-0132", "manufacturer": "Electro-Voice", "model": "ZLX-15P", "category": "Sound", "scanCode": "UVB-132", "quantity": 1, "status": "Available"}, {"id": "itm-0133", "manufacturer": "Electro-Voice", "model": "ZLX-15P", "category": "Sound", "scanCode": "UVB-133", "quantity": 1, "status": "Available"}, {"id": "itm-0134", "manufacturer": "Electro-Voice", "model": "ZLX-15P", "category": "Sound", "scanCode": "UVB-134", "quantity": 1, "status": "Available"}, {"id": "itm-0135", "manufacturer": "Samson", "model": "Bluetooth Portable Speaker", "category": "Sound", "scanCode": "UVB-135", "quantity": 1, "status": "Available"}, {"id": "itm-0136", "manufacturer": "Burgess", "model": "Foldable Stage", "category": "Staging", "scanCode": "UVB-136", "quantity": 1, "status": "Available"}, {"id": "itm-0137", "manufacturer": "Unknown", "model": "Square Staging Block Frames", "category": "Staging", "scanCode": "UVB-137", "quantity": 12, "status": "Available"}, {"id": "itm-0138", "manufacturer": "Unknown", "model": "Square Staging Block Tops", "category": "Staging", "scanCode": "UVB-138", "quantity": 12, "status": "Available"}, {"id": "itm-0139", "manufacturer": "Logitech", "model": "Presentation Clicker", "category": "Misc", "scanCode": "UVB-139", "quantity": 1, "status": "Available"}, {"id": "itm-0140", "manufacturer": "Logitech", "model": "Presentation Clicker", "category": "Misc", "scanCode": "UVB-140", "quantity": 1, "status": "Available"}, {"id": "itm-0141", "manufacturer": "Amerteer", "model": "Presentation Clicker", "category": "Misc", "scanCode": "UVB-141", "quantity": 1, "status": "Available"}, {"id": "itm-0142", "manufacturer": "Unknown", "model": "Dancefloor", "category": "Staging", "scanCode": "UVB-142", "quantity": 1, "status": "Available"}, {"id": "itm-0143", "manufacturer": "Extension Lead", "model": "2-Way 5m Extension Lead", "category": "Cable", "scanCode": "UVB-143", "quantity": 1, "status": "Available"}, {"id": "itm-0144", "manufacturer": "Extension Lead", "model": "4-Way 10m Extension Lead", "category": "Cable", "scanCode": "UVB-144", "quantity": 1, "status": "Available"}, {"id": "itm-0145", "manufacturer": "Extension Lead", "model": "4-Way 10m Extension Lead", "category": "Cable", "scanCode": "UVB-145", "quantity": 1, "status": "Available"}, {"id": "itm-0146", "manufacturer": "Extension Lead", "model": "4-Way 2m Extension Lead", "category": "Cable", "scanCode": "UVB-146", "quantity": 1, "status": "Available"}, {"id": "itm-0147", "manufacturer": "Extension Lead", "model": "4-Way 10m Extension Lead", "category": "Cable", "scanCode": "UVB-147", "quantity": 1, "status": "Available"}, {"id": "itm-0148", "manufacturer": "Extension Lead", "model": "2-Way 2m Extension Lead", "category": "Cable", "scanCode": "UVB-148", "quantity": 1, "status": "Available"}, {"id": "itm-0149", "manufacturer": "Extension Lead", "model": "6-Way 2m Extension Lead", "category": "Cable", "scanCode": "UVB-149", "quantity": 1, "status": "Available"}, {"id": "itm-0150", "manufacturer": "Extension Lead", "model": "4-Way 10m Extension Lead", "category": "Cable", "scanCode": "UVB-150", "quantity": 1, "status": "Available"}, {"id": "itm-0151", "manufacturer": "Extension Lead", "model": "2-Way 10m Extension Lead", "category": "Cable", "scanCode": "UVB-151", "quantity": 1, "status": "Available"}, {"id": "itm-0152", "manufacturer": "Extension Lead", "model": "2-Way 10m Extension Lead", "category": "Cable", "scanCode": "UVB-152", "quantity": 1, "status": "Available"}, {"id": "itm-0153", "manufacturer": "Extension Lead", "model": "4-Way 5m Extension Lead", "category": "Cable", "scanCode": "UVB-153", "quantity": 1, "status": "Available"}, {"id": "itm-0154", "manufacturer": "Extension Lead", "model": "2-Way 10m Extension Lead", "category": "Cable", "scanCode": "UVB-154", "quantity": 1, "status": "Available"}, {"id": "itm-0155", "manufacturer": "Extension Lead", "model": "2-Way 10m Extension Lead", "category": "Cable", "scanCode": "UVB-155", "quantity": 1, "status": "Available"}, {"id": "itm-0156", "manufacturer": "Extension Lead", "model": "4-Way 2m Extension Lead", "category": "Cable", "scanCode": "UVB-156", "quantity": 1, "status": "Available"}, {"id": "itm-0157", "manufacturer": "Extension Lead", "model": "6-Way 2m Extension Lead", "category": "Cable", "scanCode": "UVB-157", "quantity": 1, "status": "Available"}, {"id": "itm-0158", "manufacturer": "Extension Lead", "model": "6-Way 2m Extension Lead", "category": "Cable", "scanCode": "UVB-158", "quantity": 1, "status": "Available"}, {"id": "itm-0159", "manufacturer": "Extension Lead", "model": "6-Way 2m Extension Lead", "category": "Cable", "scanCode": "UVB-159", "quantity": 1, "status": "Available"}, {"id": "itm-0160", "manufacturer": "Extension Lead", "model": "6-Way 2m Extension Lead", "category": "Cable", "scanCode": "UVB-160", "quantity": 1, "status": "Available"}, {"id": "itm-0161", "manufacturer": "Extension Lead", "model": "6-Way 2m Extension Lead", "category": "Cable", "scanCode": "UVB-161", "quantity": 1, "status": "Available"}, {"id": "itm-0162", "manufacturer": "Extension Lead", "model": "4-Way 2m Extension Lead", "category": "Cable", "scanCode": "UVB-162", "quantity": 1, "status": "Available"}, {"id": "itm-0163", "manufacturer": "Extension Lead", "model": "4-Way 2m Extension Lead", "category": "Cable", "scanCode": "UVB-163", "quantity": 1, "status": "Available"}, {"id": "itm-0164", "manufacturer": "Extension Lead", "model": "4-Way 2m Extension Lead", "category": "Cable", "scanCode": "UVB-164", "quantity": 1, "status": "Available"}, {"id": "itm-0165", "manufacturer": "Extension Lead", "model": "4-Way 2m Extension Lead", "category": "Cable", "scanCode": "UVB-165", "quantity": 1, "status": "Available"}, {"id": "itm-0166", "manufacturer": "Extension Lead", "model": "4-Way 2m Extension Lead", "category": "Cable", "scanCode": "UVB-166", "quantity": 1, "status": "Available"}, {"id": "itm-0167", "manufacturer": "Extension Lead", "model": "4-Way 2m Extension Lead", "category": "Cable", "scanCode": "UVB-167", "quantity": 1, "status": "Available"}, {"id": "itm-0168", "manufacturer": "Extension Lead", "model": "2-Way 2m Extension Lead", "category": "Cable", "scanCode": "UVB-168", "quantity": 1, "status": "Available"}, {"id": "itm-0169", "manufacturer": "Pro-Signal", "model": "10m CAT 5E Cable - Grey", "category": "Network", "scanCode": "UVB-169", "quantity": 4, "status": "Available"}, {"id": "itm-0170", "manufacturer": "Pro-Signal", "model": "5m CAT 5E Cable - Grey", "category": "Network", "scanCode": "UVB-170", "quantity": 5, "status": "Available"}, {"id": "itm-0171", "manufacturer": "Unknown", "model": "5m CAT 5 Cable", "category": "Network", "scanCode": "UVB-171", "quantity": 5, "status": "Available"}, {"id": "itm-0172", "manufacturer": "Unknown", "model": "0.5m CAT 5 Cable", "category": "Network", "scanCode": "UVB-172", "quantity": 12, "status": "Available"}, {"id": "itm-0173", "manufacturer": "Unknown", "model": "1m CAT 5 Cable", "category": "Network", "scanCode": "UVB-173", "quantity": 19, "status": "Available"}, {"id": "itm-0174", "manufacturer": "Unknown", "model": "Patch CAT 5 Cable", "category": "Network", "scanCode": "UVB-174", "quantity": 14, "status": "Available"}, {"id": "itm-0175", "manufacturer": "Unknown", "model": "Assorted Lengths CAT 5 Cable", "category": "Network", "scanCode": "UVB-175", "quantity": 34, "status": "Available"}, {"id": "itm-0176", "manufacturer": "Extension Lead", "model": "4-Way 5m Extension Lead", "category": "Cable", "scanCode": "UVB-176", "quantity": 1, "status": "Available"}, {"id": "itm-0177", "manufacturer": "Pro Signal", "model": "HDMI 4K Splitter RX", "category": "Video", "scanCode": "UVB-177", "quantity": 1, "status": "Available"}, {"id": "itm-0178", "manufacturer": "Pro Signal", "model": "HDMI 4K Splitter RX", "category": "Video", "scanCode": "UVB-178", "quantity": 1, "status": "Available"}, {"id": "itm-0179", "manufacturer": "LabGear", "model": "HDMI Splitter/Extender RX", "category": "Video", "scanCode": "UVB-179", "quantity": 1, "status": "Available"}, {"id": "itm-0180", "manufacturer": "LabGear", "model": "HDMI Splitter/Extender RX", "category": "Video", "scanCode": "UVB-180", "quantity": 1, "status": "Available"}, {"id": "itm-0181", "manufacturer": "LabGear", "model": "HDMI Splitter/Extender RX", "category": "Video", "scanCode": "UVB-181", "quantity": 1, "status": "Available"}, {"id": "itm-0182", "manufacturer": "StarTech", "model": "2-Port HDMI Splitter", "category": "Video", "scanCode": "UVB-182", "quantity": 1, "status": "Available"}, {"id": "itm-0183", "manufacturer": "Unknown", "model": "HDMI Patch Cable", "category": "Cable", "scanCode": "UVB-183", "quantity": 1, "status": "Available"}, {"id": "itm-0184", "manufacturer": "Unknown", "model": "HDMI Patch Cable", "category": "Cable", "scanCode": "UVB-184", "quantity": 1, "status": "Available"}, {"id": "itm-0185", "manufacturer": "N/A", "model": "Red Carpet", "category": "Staging", "scanCode": "UVB-185", "quantity": 1, "status": "Available"}, {"id": "itm-0186", "manufacturer": "N/A", "model": "Red Carpet", "category": "Staging", "scanCode": "UVB-186", "quantity": 1, "status": "Available"}, {"id": "itm-0187", "manufacturer": "LG", "model": "55\" TV", "category": "Video", "scanCode": "UVB-187", "quantity": 1, "status": "Fixed Install"}, {"id": "itm-0188", "manufacturer": "LG", "model": "55\" TV", "category": "Video", "scanCode": "UVB-188", "quantity": 1, "status": "Fixed Install"}, {"id": "itm-0189", "manufacturer": "Revo", "model": "2m x 1m Stage Deck", "category": "Staging", "scanCode": "UVB-189", "quantity": 1, "status": "Fixed Install"}, {"id": "itm-0190", "manufacturer": "Panasonic", "model": "Eneloop AA Batteries", "category": "Misc", "scanCode": "UVB-190", "quantity": 1, "status": "Fixed Install"}, {"id": "itm-0191", "manufacturer": "Honor", "model": "Pad X7 8.7-inch Tablet, 4GB RAM + 64GB Storage", "category": "Misc", "scanCode": "UVB-191", "quantity": 1, "status": "Fixed Install"}, {"id": "itm-0192", "manufacturer": "Honor", "model": "Pad X7 8.7-inch Tablet, 4GB RAM + 64GB Storage", "category": "Misc", "scanCode": "UVB-192", "quantity": 1, "status": "Fixed Install"}, {"id": "itm-0193", "manufacturer": "Honor", "model": "Pad X7 8.7-inch Tablet, 4GB RAM + 64GB Storage", "category": "Misc", "scanCode": "UVB-193", "quantity": 1, "status": "Fixed Install"}, {"id": "itm-0194", "manufacturer": "BlackMagic", "model": "MiniConverter SDI to HDMI 4K", "category": "Video", "scanCode": "UVB-194", "quantity": 1, "status": "Fixed Install"}, {"id": "itm-0195", "manufacturer": "Apple", "model": "iPad (9th Generation)", "category": "Misc", "scanCode": "UVB-195", "quantity": 1, "status": "Fixed Install"}, {"id": "itm-0196", "manufacturer": "Apple", "model": "iPad (9th Generation)", "category": "Misc", "scanCode": "UVB-196", "quantity": 1, "status": "Fixed Install"}, {"id": "itm-0197", "manufacturer": "Apple", "model": "iPad (9th Generation)", "category": "Misc", "scanCode": "UVB-197", "quantity": 1, "status": "Fixed Install"}, {"id": "itm-0198", "manufacturer": "Apple", "model": "iPad (9th Generation)", "category": "Misc", "scanCode": "UVB-198", "quantity": 1, "status": "Fixed Install"}, {"id": "itm-0199", "manufacturer": "Sennheiser", "model": "EM 100 G4 Handheld Microphone", "category": "Sound", "scanCode": "UVB-199", "quantity": 1, "status": "Checked Out"}, {"id": "itm-0200", "manufacturer": "Sennheiser", "model": "EM 100 G4 Receiver", "category": "Sound", "scanCode": "UVB-200", "quantity": 1, "status": "Checked Out"}, {"id": "itm-0201", "manufacturer": "Soundcraft", "model": "EPM6 Mixer", "category": "Sound", "scanCode": "UVB-201", "quantity": 1, "status": "Checked Out"}, {"id": "itm-0202", "manufacturer": "LG", "model": "65\" TV on Wheels", "category": "Video", "scanCode": "UVB-202", "quantity": 1, "status": "Checked Out"}, {"id": "itm-0203", "manufacturer": "LG", "model": "65\" TV on Wheels", "category": "Video", "scanCode": "UVB-203", "quantity": 1, "status": "Checked Out"}, {"id": "itm-0204", "manufacturer": "LG", "model": "65\" TV on Wheels", "category": "Video", "scanCode": "UVB-204", "quantity": 1, "status": "Checked Out"}, {"id": "itm-0205", "manufacturer": "Samsung", "model": "75\" TV on Wheels", "category": "Video", "scanCode": "UVB-205", "quantity": 1, "status": "Checked Out"}, {"id": "itm-0206", "manufacturer": "Samsung", "model": "90\" TV on Wheels", "category": "Video", "scanCode": "UVB-206", "quantity": 1, "status": "Checked Out"}, {"id": "itm-0207", "manufacturer": "Electro-Voice", "model": "ZLX-12P", "category": "Sound", "scanCode": "UVB-207", "quantity": 1, "status": "Checked Out"}, {"id": "itm-0208", "manufacturer": "Electro-Voice", "model": "ZLX-12P", "category": "Sound", "scanCode": "UVB-208", "quantity": 1, "status": "Checked Out"}, {"id": "itm-0209", "manufacturer": "ASUS", "model": "V16 PSU", "category": "Cable", "scanCode": "UVB-209", "quantity": 1, "status": "Checked Out"}, {"id": "itm-0210", "manufacturer": "Sennheiser", "model": "EM 100 G4 Handheld Microphone", "category": "Sound", "scanCode": "UVB-210", "quantity": 1, "status": "Out of Use"}, {"id": "itm-0211", "manufacturer": "Sennheiser", "model": "ew100 G3 Receiver", "category": "Sound", "scanCode": "UVB-211", "quantity": 1, "status": "Out of Use"}, {"id": "itm-0212", "manufacturer": "Sennheiser", "model": "ew100 G3 Receiver", "category": "Sound", "scanCode": "UVB-212", "quantity": 1, "status": "Out of Use"}, {"id": "itm-0213", "manufacturer": "Pro Signal", "model": "HDMI 4K Splitter TX", "category": "Video", "scanCode": "UVB-213", "quantity": 1, "status": "Out of Use"}, {"id": "itm-0214", "manufacturer": "Contacta", "model": "Portable Hearing Loop", "category": "Sound", "scanCode": "UVB-214", "quantity": 1, "status": "Out of Use"}, {"id": "itm-0215", "manufacturer": "NEC", "model": "PV800UL Projector", "category": "Video", "scanCode": "UVB-215", "quantity": 1, "status": "Out of Use"}, {"id": "itm-0216", "manufacturer": "NEC", "model": "PA550W Projector", "category": "Video", "scanCode": "UVB-216", "quantity": 1, "status": "Out of Use"}, {"id": "itm-0217", "manufacturer": "NEC", "model": "P451W Projector", "category": "Video", "scanCode": "UVB-217", "quantity": 1, "status": "Out of Use"}, {"id": "itm-0218", "manufacturer": "Revo", "model": "2m x 1m Stage Deck", "category": "Staging", "scanCode": "UVB-218", "quantity": 1, "status": "Out of Use"}, {"id": "itm-0219", "manufacturer": "Revo", "model": "2m x 1m Stage Deck", "category": "Staging", "scanCode": "UVB-219", "quantity": 1, "status": "Out of Use"}, {"id": "itm-0220", "manufacturer": "Revo", "model": "2m x 1m Stage Deck", "category": "Staging", "scanCode": "UVB-220", "quantity": 1, "status": "Out of Use"}, {"id": "itm-0221", "manufacturer": "Revo", "model": "Legs/Bases for Deck", "category": "Staging", "scanCode": "UVB-221", "quantity": 1, "status": "Out of Use"}, {"id": "itm-0222", "manufacturer": "Revo", "model": "Legs/Bases for Deck", "category": "Staging", "scanCode": "UVB-222", "quantity": 1, "status": "Out of Use"}, {"id": "itm-0223", "manufacturer": "Revo", "model": "Legs/Bases for Deck", "category": "Staging", "scanCode": "UVB-223", "quantity": 1, "status": "Out of Use"}, {"id": "itm-0224", "manufacturer": "Revo", "model": "Legs/Bases for Deck", "category": "Staging", "scanCode": "UVB-224", "quantity": 1, "status": "Out of Use"}, {"id": "itm-0225", "manufacturer": "Yamaha", "model": "Analog Mixer", "category": "Sound", "scanCode": "UVB-225", "quantity": 1, "status": "Out of Use"}, {"id": "itm-0226", "manufacturer": "Unknown", "model": "HDMI Patch Cable", "category": "Cable", "scanCode": "UVB-226", "quantity": 1, "status": "Out of Use"}];   // fallback copy of the inventory, used only if the live inventory can't be read
+const ROOMS = ["The House", "The Studio", "The Door", "The Meeting Rooms", "Meeting Room 1 & 2", "Meeting Room 2 & 3", "Meeting Room 1", "Meeting Room 2", "Meeting Room 3", "Winteringham", "Burman", "FOH 1", "LOB 101", "LOB 102", "LOB 103", "LOB 105", "Library Mezzanine", "Rep Mezzanine", "Rep Cafe", "SMR", "Library Terrace", "Library Secret Garden", "Feature Space", "Book Rotunda"];
+const SITE_PASSWORD = "UVBTech2026";
+const UNLOCK_KEY = 'uvb-planner-unlocked';
+
+/* ============ HELPERS ============ */
+const $ = id => document.getElementById(id);
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function byName(a,b){ return String(a||'').localeCompare(String(b||''),undefined,{numeric:true,sensitivity:'base'}); }
+function parseISO(d){ const p=d.split('-').map(Number); return new Date(p[0],p[1]-1,p[2]); }
+function toISO(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function todayISO(){ return toISO(new Date()); }
+function addMonths(ym,n){ const p=ym.split('-').map(Number); const d=new Date(p[0],p[1]-1+n,1); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }
+function monthLabel(ym){ const p=ym.split('-').map(Number); return new Date(p[0],p[1]-1,1).toLocaleDateString('en-GB',{month:'long',year:'numeric'}); }
+function daysInMonth(ym){ const p=ym.split('-').map(Number); return new Date(p[0],p[1],0).getDate(); }
+function fmtLong(d){ return parseISO(d).toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'}); }
+function fmtShort(d){ return d? parseISO(d).toLocaleDateString('en-GB',{day:'numeric',month:'short'}) : '—'; }
+function fmtDT(d,t){ return fmtShort(d)+(t?' '+t:''); }
+function slug(s){ return String(s).replace(/[^A-Za-z0-9]+/g,'_'); }
+function rdKey(room,date){ return slug(room)+'__'+date; }
+function toast(msg){ const t=$('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'),3400); }
+function fail(e){ console.error(e); toast('Save failed — check your connection'); }
+function setStatus(msg,level){ const el=$('syncState'); el.textContent=msg; el.className='brand-sub '+(level||''); }
+
+/* ============ STATE ============ */
+let db = null;
+let inventory = [];
+let extra = {}, hired = {}, bookings = {}, roomDays = {};
+let equipMap = {};
+let cellMap = {};
+let conflicts = [], conflictIds = {};
+let viewMonth = todayISO().slice(0,7);
+let view = 'room';
+let currentRoom = ROOMS[0];
+let palTab = 'kit', palSearch = '', palCat = '';
+let dayModal = null;
+let dragKind = '';
+let pendingRender = false;
+const loaded = {};
+const NEEDED = ['items','extra','hired','bookings','roomDays'];
+function allLoaded(){ return NEEDED.every(k=>loaded[k]); }
+
+function normInv(it){
+  return { id:it.id, model:it.model||'', manufacturer:it.manufacturer||'', category:it.category||'',
+           scanCode:it.scanCode||'', quantity:Math.max(1,parseInt(it.quantity)||1), status:it.status||'' };
+}
+inventory = SEED_ITEMS.map(normInv);
+
+/* ============ EQUIPMENT LIBRARY ============
+   Everything draggable lives in equipMap: inventory items (id as-is), extra kit added in this app
+   ("x-<key>") and hired items ("h-<key>"). */
+function rebuildLib(){
+  equipMap = {};
+  inventory.forEach(it=>{ if(!it.id) return;
+    equipMap[it.id] = { id:it.id, src:'inv', name:it.model||'(unnamed)', mfr:it.manufacturer, code:it.scanCode, cat:it.category||'Other', qty:it.quantity, status:it.status }; });
+  Object.keys(extra).forEach(k=>{ const e=extra[k]||{};
+    equipMap['x-'+k] = { id:'x-'+k, src:'extra', name:e.model||'(unnamed)', mfr:e.manufacturer||'', code:'', cat:e.category||'Other', qty:Math.max(1,parseInt(e.quantity)||1), status:'' }; });
+  Object.keys(hired).forEach(k=>{ const h=hired[k]||{};
+    equipMap['h-'+k] = { id:'h-'+k, src:'hired', name:h.name||'(hired item)', mfr:h.supplier||'', code:'', cat:'Hired', qty:Math.max(1,parseInt(h.quantity)||1), status:'' }; });
+}
+function eqName(b){ const e=equipMap[b.equipId]; return e? e.name : (b.label||'(removed item)'); }
+function hiredNote(b){
+  const h=hired[String(b.equipId).slice(2)]; if(!h) return '';
+  const parts=[];
+  if(h.deliveryDate===b.date) parts.push('Delivery '+(h.deliveryTime||''));
+  if(h.collectionDate===b.date) parts.push('Collect '+(h.collectionTime||''));
+  return (h.supplier||'')+(parts.length?' · '+parts.join(' / '):'');
+}
+function eqSub(b){
+  const e=equipMap[b.equipId]; if(!e) return 'no longer in the list';
+  if(e.src==='hired') return hiredNote(b);
+  return [e.code,e.mfr].filter(Boolean).join(' · ');
+}
+
+/* ============ CELLS & CLASHES ============ */
+function buildCellMap(){
+  cellMap = {};
+  Object.keys(bookings).forEach(id=>{ const b=bookings[id]; if(!b||!b.room||!b.date) return;
+    const k=b.room+'|'+b.date; (cellMap[k]=cellMap[k]||[]).push(Object.assign({id:id},b)); });
+}
+function computeConflicts(){
+  conflicts=[]; conflictIds={};
+  const groups={};
+  Object.keys(bookings).forEach(id=>{ const b=bookings[id]; if(!b||!b.date||!b.equipId) return;
+    const k=b.date+'|'+b.equipId; (groups[k]=groups[k]||[]).push(Object.assign({id:id},b)); });
+  Object.keys(groups).forEach(k=>{
+    const list=groups[k]; const first=list[0]; const e=equipMap[first.equipId];
+    const avail=e? e.qty : 1;
+    const total=list.reduce((s,b)=>s+(parseInt(b.qty)||1),0);
+    if(total<=avail) return;
+    const rooms=[...new Set(list.map(b=>b.room))];
+    const text = rooms.length>1
+      ? 'In '+rooms.join(' and ')+' on the same day'+(avail>1?' — '+total+' booked, '+avail+' available':'')
+      : 'Over-allocated in '+rooms[0]+': '+total+' booked, '+avail+' available';
+    conflicts.push({type:'clash',date:first.date,name:eqName(first),rooms:rooms,text:text});
+    list.forEach(b=>{
+      const others=rooms.filter(r=>r!==b.room);
+      conflictIds[b.id]={level:'bad',msg: others.length? 'Also booked in '+others.join(', ')+' that day' : 'Over-allocated: '+total+' booked, '+avail+' available'};
+    });
+  });
+  Object.keys(bookings).forEach(id=>{ const b=bookings[id]; if(!b||!b.equipId||String(b.equipId).indexOf('h-')!==0) return;
+    const h=hired[String(b.equipId).slice(2)]; if(!h) return;
+    if((h.deliveryDate&&b.date<h.deliveryDate)||(h.collectionDate&&b.date>h.collectionDate)){
+      const text='Booked in '+b.room+' on '+fmtShort(b.date)+' but the hire runs '+fmtDT(h.deliveryDate,h.deliveryTime)+' → '+fmtDT(h.collectionDate,h.collectionTime);
+      conflicts.push({type:'hire',date:b.date,name:(h.name||'Hired item'),rooms:[b.room],text:text});
+      if(!conflictIds[id]) conflictIds[id]={level:'warn',msg:'Outside the hire period ('+fmtDT(h.deliveryDate,h.deliveryTime)+' → '+fmtDT(h.collectionDate,h.collectionTime)+')'};
+    }
+  });
+  conflicts.sort((a,b)=> a.date<b.date?-1: a.date>b.date?1:0);
+}
+function usedElsewhere(equipId,date,room){
+  const rooms=new Set();
+  Object.keys(bookings).forEach(id=>{ const b=bookings[id]; if(b&&b.equipId===equipId&&b.date===date&&b.room!==room) rooms.add(b.room); });
+  return [...rooms];
+}
+
+/* ============ BOOKINGS ============ */
+function addBooking(equipId,room,date,override){
+  if(!db){ toast('Not connected — changes won’t be saved'); return; }
+  const e=override||equipMap[equipId]; if(!e){ toast('Equipment not found'); return; }
+  const dup=Object.keys(bookings).some(id=>{ const b=bookings[id]; return b&&b.equipId===equipId&&b.room===room&&b.date===date; });
+  if(dup){ toast(e.name+' is already in '+room+' on '+fmtShort(date)); return; }
+  const rec={ equipId:equipId, room:room, date:date, qty:1, label:e.name+(e.code?' ('+e.code+')':'') };
+  const ref=db.ref('planner/bookings').push();
+  ref.set(rec).catch(fail);
+  computeConflicts();
+  const info=conflictIds[ref.key];
+  if(info && info.level==='bad') toast('⚠ '+e.name+': '+info.msg);
+  else if(info) toast('! '+e.name+': '+info.msg);
+  else if(e.status==='Out of Use') toast('Note: '+e.name+' is marked Out of Use in the inventory');
+  else toast('Added '+e.name+' → '+room+', '+fmtShort(date));
+}
+function moveBooking(id,room,date){
+  const b=bookings[id]; if(!b||!db) return;
+  if(b.room===room&&b.date===date) return;
+  const dup=Object.keys(bookings).some(k=>{ const o=bookings[k]; return k!==id&&o&&o.equipId===b.equipId&&o.room===room&&o.date===date; });
+  if(dup){ toast('Already in '+room+' on '+fmtShort(date)); return; }
+  db.ref('planner/bookings/'+id).update({room:room,date:date}).catch(fail);
+}
+function removeBooking(id){ if(!db) return; db.ref('planner/bookings/'+id).remove().catch(fail); }
+function saveRoomDay(room,date,field,val){
+  if(!db) return;
+  const cur=Object.assign({event:'',layout:''}, roomDays[rdKey(room,date)]||{});
+  cur[field]=String(val||'').trim();
+  const ref=db.ref('planner/roomDays/'+rdKey(room,date));
+  if(!cur.event&&!cur.layout) ref.remove().catch(fail);
+  else ref.set({event:cur.event||'',layout:cur.layout||''}).catch(fail);
+}
+function deleteEquip(eid){
+  const e=equipMap[eid]; if(!e||!db) return;
+  const ids=Object.keys(bookings).filter(id=>bookings[id]&&bookings[id].equipId===eid);
+  const msg='Remove "'+e.name+'"'+(ids.length?' and its '+ids.length+' booking'+(ids.length===1?'':'s'):'')+'?';
+  if(!confirm(msg)) return;
+  const up={};
+  ids.forEach(id=>{ up['planner/bookings/'+id]=null; });
+  up['planner/'+(e.src==='hired'?'hired':'extra')+'/'+eid.slice(2)]=null;
+  db.ref().update(up).catch(fail);
+}
+
+/* ============ RENDER: MAIN ============ */
+function chipHTML(b){
+  const e=equipMap[b.equipId]; const info=conflictIds[b.id];
+  const cls=['bk']; if(String(b.equipId).indexOf('h-')===0) cls.push('hired'); if(info) cls.push(info.level); if(!e) cls.push('gone');
+  const q=parseInt(b.qty)||1;
+  const tip=eqName(b)+(info?' — '+info.msg:'');
+  return '<div class="'+cls.join(' ')+'" draggable="true" data-bid="'+esc(b.id)+'" title="'+esc(tip)+'">'
+    + '<div class="bn"><span class="bname">'+esc(eqName(b))+(q>1?'<span class="bq">×'+q+'</span>':'')+'</span><span class="bsub">'+esc(eqSub(b))+'</span></div>'
+    + (info?'<span class="bwarn">'+(info.level==='bad'?'⚠':'!')+'</span>':'')
+    + '<button class="bx" data-del title="Remove">×</button></div>';
+}
+function roomViewHTML(){
+  const n=daysInMonth(viewMonth); const p=viewMonth.split('-').map(Number);
+  const offset=(new Date(p[0],p[1]-1,1).getDay()+6)%7;
+  const today=todayISO(); let total=0;
+  let cells='';
+  for(let i=0;i<offset;i++) cells+='<div class="day-cell blank"></div>';
+  for(let d=1; d<=n; d++){
+    const date=viewMonth+'-'+String(d).padStart(2,'0');
+    const wd=(offset+d-1)%7;
+    const rd=roomDays[rdKey(currentRoom,date)]||{};
+    const list=(cellMap[currentRoom+'|'+date]||[]).slice().sort((a,b)=>byName(eqName(a),eqName(b)));
+    total+=list.length;
+    cells+='<div class="day-cell'+(wd>=5?' weekend':'')+(date===today?' today':'')+'" data-room="'+esc(currentRoom)+'" data-date="'+date+'">'
+      + '<div class="day-head"><button class="dnum" data-manage title="Open this day">'+d+'</button><span class="dcount">'+(list.length? list.length+' item'+(list.length===1?'':'s') : '')+'</span></div>'
+      + '<input class="mini-in ev" data-field="event" placeholder="Event name" value="'+esc(rd.event||'')+'">'
+      + '<input class="mini-in lay" data-field="layout" placeholder="Room layout" value="'+esc(rd.layout||'')+'">'
+      + '<div class="bks">'+list.map(chipHTML).join('')+'</div></div>';
+  }
+  let head=''; ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].forEach(x=>{ head+='<div class="dow-h">'+x+'</div>'; });
+  return '<div class="main-title"><h2>'+esc(currentRoom)+'</h2><span>'+esc(monthLabel(viewMonth))+' · '+total+' booking'+(total===1?'':'s')+'</span></div>'
+    + '<div class="cal-wrap"><div class="cal">'+head+cells+'</div></div>';
+}
+function overviewHTML(){
+  const n=daysInMonth(viewMonth); const p=viewMonth.split('-').map(Number);
+  const offset=(new Date(p[0],p[1]-1,1).getDay()+6)%7; const today=todayISO();
+  const L=['M','T','W','T','F','S','S'];
+  let h='<div class="main-title"><h2>All rooms</h2><span>'+esc(monthLabel(viewMonth))+' · click a cell to open it, or drop kit straight onto it</span></div>';
+  h+='<div class="ov-wrap"><table class="ov"><thead><tr><th class="corner">Room</th>';
+  for(let d=1; d<=n; d++){
+    const date=viewMonth+'-'+String(d).padStart(2,'0'); const wd=(offset+d-1)%7;
+    h+='<th class="'+(wd>=5?'wk ':'')+(date===today?'today':'')+'">'+d+'<br><span style="font-size:9px;">'+L[wd]+'</span></th>';
+  }
+  h+='</tr></thead><tbody>';
+  ROOMS.forEach(room=>{
+    h+='<tr><th class="rn" data-room="'+esc(room)+'">'+esc(room)+'</th>';
+    for(let d=1; d<=n; d++){
+      const date=viewMonth+'-'+String(d).padStart(2,'0'); const wd=(offset+d-1)%7;
+      const list=cellMap[room+'|'+date]||[];
+      const bad=list.some(b=>conflictIds[b.id]&&conflictIds[b.id].level==='bad');
+      const warn=!bad&&list.some(b=>conflictIds[b.id]&&conflictIds[b.id].level==='warn');
+      const rd=roomDays[rdKey(room,date)]||{};
+      const txt=list.length? list.length : ((rd.event||rd.layout)?'•':'');
+      const title=[rd.event,rd.layout?'Layout: '+rd.layout:'',list.length?list.length+' item'+(list.length===1?'':'s'):''].filter(Boolean).join(' · ');
+      h+='<td class="c'+(list.length?' has':'')+(bad?' bad':'')+(warn?' warn':'')+(wd>=5?' wk':'')+(date===today?' today':'')+'" data-room="'+esc(room)+'" data-date="'+date+'" title="'+esc(title)+'">'+txt+'</td>';
+    }
+    h+='</tr>';
+  });
+  return h+'</tbody></table></div>';
+}
+function updateConflictBadge(){
+  const inMonth=conflicts.filter(c=>c.date.slice(0,7)===viewMonth);
+  const clashes=inMonth.filter(c=>c.type==='clash').length; const warns=inMonth.length-clashes;
+  let cls='cf-btn ok', txt='✓ No clashes this month';
+  if(clashes){ cls='cf-btn bad'; txt='⚠ '+clashes+' clash'+(clashes===1?'':'es')+(warns?' · '+warns+' hire warning'+(warns===1?'':'s'):''); }
+  else if(warns){ cls='cf-btn warn'; txt='! '+warns+' hire warning'+(warns===1?'':'s'); }
+  const other=conflicts.length-inMonth.length;
+  if(other) txt+=' (+'+other+' in other months)';
+  const btn=$('conflictBtn'); btn.className=cls; btn.textContent=txt;
+}
+function renderMain(){
+  computeConflicts(); buildCellMap();
+  $('monthLabel').textContent=monthLabel(viewMonth);
+  $('monthPick').value=viewMonth;
+  $('roomSel').value=currentRoom;
+  $('roomSelWrap').style.display = view==='room' ? '' : 'none';
+  document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===view));
+  updateConflictBadge();
+  $('main').innerHTML = view==='room' ? roomViewHTML() : overviewHTML();
+  refreshDayModal();
+}
+function isTypingInMain(){
+  const a=document.activeElement;
+  return !!(a && a.closest && a.closest('#main') && /^(INPUT|TEXTAREA)$/.test(a.tagName));
+}
+function scheduleRender(){
+  if(!allLoaded()) return;
+  if(isTypingInMain()){ pendingRender=true; return; }
+  renderMain();
+}
+document.addEventListener('focusout',()=>{ setTimeout(()=>{ if(pendingRender && !isTypingInMain()){ pendingRender=false; renderMain(); } },60); });
+// Layout/event text changes patch the inputs in place so typing and clicking are never interrupted.
+function patchRoomDays(){
+  if(view!=='room'){ if(allLoaded()) renderMain(); return; }
+  document.querySelectorAll('#main .day-cell[data-date]').forEach(c=>{
+    const rd=roomDays[rdKey(c.dataset.room,c.dataset.date)]||{};
+    c.querySelectorAll('input[data-field]').forEach(inp=>{ if(inp===document.activeElement) return; const v=rd[inp.dataset.field]||''; if(inp.value!==v) inp.value=v; });
+  });
+  if(dayModal && $('dm-event')){
+    const rd=roomDays[rdKey(dayModal.room,dayModal.date)]||{};
+    if($('dm-event')!==document.activeElement) $('dm-event').value=rd.event||'';
+    if($('dm-layout')!==document.activeElement) $('dm-layout').value=rd.layout||'';
+  }
+}
+function gotoRoomDay(room,date){
+  closeModal(); viewMonth=date.slice(0,7); currentRoom=room; view='room'; renderMain();
+  const c=document.querySelector('.day-cell[data-date="'+date+'"]');
+  if(c){ c.scrollIntoView({block:'center',behavior:'smooth'}); c.classList.add('flash'); setTimeout(()=>c.classList.remove('flash'),1500); }
+}
+
+/* ============ RENDER: PALETTE ============ */
+function palRowHTML(e){
+  const custom=e.src==='extra'; const oou=e.status==='Out of Use';
+  return '<div class="pal-row'+(oou?' oou':'')+'" draggable="true" data-eid="'+esc(e.id)+'">'
+    + '<div class="pal-main"><div class="pal-name">'+esc(e.name)+(e.qty>1?' <span class="pal-q">×'+e.qty+'</span>':'')+'</div>'
+    + '<div class="pal-sub">'+esc([e.code,e.mfr].filter(Boolean).join(' · '))+(oou?' · <span class="oou-t">Out of use</span>':'')+(custom?' · added here':'')+'</div></div>'
+    + (custom?'<button class="icon-b" data-edit="'+esc(e.id)+'" title="Edit">✎</button><button class="icon-b" data-delete="'+esc(e.id)+'" title="Remove">✕</button>':'')
+    + '</div>';
+}
+function hiredRowHTML(k){
+  const h=hired[k]||{}; const q=Math.max(1,parseInt(h.quantity)||1);
+  return '<div class="pal-row hired" draggable="true" data-eid="h-'+esc(k)+'">'
+    + '<div class="pal-main"><div class="pal-name">'+esc(h.name||'(hired item)')+(q>1?' <span class="pal-q">×'+q+'</span>':'')+'</div>'
+    + '<div class="pal-sub">'+esc(h.supplier||'')+'</div>'
+    + '<div class="pal-sub">↓ '+esc(fmtDT(h.deliveryDate,h.deliveryTime))+' &nbsp; ↑ '+esc(fmtDT(h.collectionDate,h.collectionTime))+'</div></div>'
+    + '<button class="icon-b" data-edit="h-'+esc(k)+'" title="Edit">✎</button><button class="icon-b" data-delete="h-'+esc(k)+'" title="Remove">✕</button></div>';
+}
+function renderPalChips(){
+  const cats=[...new Set(Object.values(equipMap).filter(e=>e.src!=='hired').map(e=>e.cat))].sort(byName);
+  if(palCat && cats.indexOf(palCat)<0) palCat='';
+  $('palChips').innerHTML='<span class="chip'+(palCat===''?' active':'')+'" data-cat="">All</span>'+cats.map(c=>'<span class="chip'+(palCat===c?' active':'')+'" data-cat="'+esc(c)+'">'+esc(c)+'</span>').join('');
+  $('catList').innerHTML=cats.map(c=>'<option value="'+esc(c)+'">').join('');
+  $('hiredCount').textContent=Object.keys(hired).length? '('+Object.keys(hired).length+')' : '';
+}
+function renderPalList(){
+  const list=$('palList'); const top=list.scrollTop; const q=palSearch.toLowerCase().trim(); let html='';
+  if(palTab==='kit'){
+    const items=Object.values(equipMap).filter(e=>e.src!=='hired')
+      .filter(e=>!palCat||e.cat===palCat)
+      .filter(e=>!q||(e.name+' '+e.mfr+' '+e.code+' '+e.cat).toLowerCase().indexOf(q)>=0)
+      .sort((a,b)=>byName(a.cat,b.cat)||byName(a.name,b.name)||byName(a.code,b.code));
+    let last=null;
+    items.forEach(e=>{ if(e.cat!==last){ html+='<div class="pal-group">'+esc(e.cat)+'</div>'; last=e.cat; } html+=palRowHTML(e); });
+    if(!items.length) html='<div class="empty">No equipment matches.</div>';
+  }else{
+    const keys=Object.keys(hired).filter(k=>{ const h=hired[k]||{}; return !q||((h.name||'')+' '+(h.supplier||'')).toLowerCase().indexOf(q)>=0; })
+      .sort((a,b)=>String((hired[a]||{}).deliveryDate||'').localeCompare(String((hired[b]||{}).deliveryDate||'')));
+    html=keys.map(hiredRowHTML).join('');
+    if(!keys.length) html='<div class="empty">'+(Object.keys(hired).length?'No hired items match.':'No hired equipment yet. Drag the “Hired equipment” tile onto a day to add one.')+'</div>';
+  }
+  list.innerHTML=html; list.scrollTop=top;
+}
+function libChanged(){ rebuildLib(); renderPalChips(); renderPalList(); scheduleRender(); }
+
+/* ============ MODALS ============ */
+function openModal(html){ $('modalBox').innerHTML=html; $('overlay').classList.add('active'); }
+function closeModal(){ $('overlay').classList.remove('active'); $('modalBox').innerHTML=''; dayModal=null; }
+
+function openDayModal(room,date){
+  dayModal={room:room,date:date};
+  const rd=roomDays[rdKey(room,date)]||{};
+  openModal('<div class="modal-head"><div><h2>'+esc(room)+'</h2><div class="m-sub">'+esc(fmtLong(date))+'</div></div><button class="close-x" data-close>✕</button></div>'
+    + '<div class="modal-body"><div class="form-grid">'
+    + '<div class="field"><label>Event name</label><input id="dm-event" value="'+esc(rd.event||'')+'" placeholder="e.g. Smith Wedding"></div>'
+    + '<div class="field"><label>Room layout (this day)</label><input id="dm-layout" value="'+esc(rd.layout||'')+'" placeholder="e.g. Cabaret, rounds of 8"></div></div>'
+    + '<div class="section-label">Equipment in this room</div><div id="dm-bookings"></div>'
+    + '<div class="section-label">Add equipment</div>'
+    + '<div class="dm-search"><input id="dm-search" placeholder="Search equipment…"><button class="btn btn-sm" id="dm-hired">+ Hired item</button></div>'
+    + '<div id="dm-results"></div></div>');
+  $('dm-event').onchange=e=>saveRoomDay(room,date,'event',e.target.value);
+  $('dm-layout').onchange=e=>saveRoomDay(room,date,'layout',e.target.value);
+  $('dm-search').oninput=renderDayResults;
+  $('dm-hired').onclick=()=>openHiredModal({room:room,date:date,fromDay:true});
+  refreshDayModal();
+}
+function refreshDayModal(){
+  if(!dayModal||!$('dm-bookings')) return;
+  const room=dayModal.room, date=dayModal.date;
+  const list=(cellMap[room+'|'+date]||[]).slice().sort((a,b)=>byName(eqName(a),eqName(b)));
+  $('dm-bookings').innerHTML = list.length ? list.map(b=>{
+    const e=equipMap[b.equipId]; const info=conflictIds[b.id]; const q=parseInt(b.qty)||1; const showQty=(e&&e.qty>1)||q>1;
+    return '<div class="dm-row'+(info?' '+info.level:'')+'"><div class="dm-main"><div class="dm-name">'+esc(eqName(b))+'</div><div class="dm-sub">'+esc(eqSub(b))+'</div>'
+      + (info?'<div class="dm-warn">'+esc(info.msg)+'</div>':'')+'</div>'
+      + (showQty?'<label class="dm-q">Qty <input type="number" min="1" value="'+q+'" data-qty="'+esc(b.id)+'"></label>':'')
+      + '<button class="icon-b" data-rm="'+esc(b.id)+'" title="Remove">✕</button></div>';
+  }).join('') : '<div class="empty">Nothing booked yet — drag kit onto this day, or add it below.</div>';
+  renderDayResults();
+}
+function renderDayResults(){
+  const box=$('dm-results'); if(!box||!dayModal) return;
+  const room=dayModal.room, date=dayModal.date; const q=($('dm-search').value||'').toLowerCase().trim();
+  let list=Object.values(equipMap).filter(e=>!q||(e.name+' '+e.mfr+' '+e.code+' '+e.cat).toLowerCase().indexOf(q)>=0)
+    .sort((a,b)=>byName(a.cat,b.cat)||byName(a.name,b.name)||byName(a.code,b.code));
+  const total=list.length; list=list.slice(0,40);
+  const inRoom=new Set((cellMap[room+'|'+date]||[]).map(b=>b.equipId));
+  if(!total){ box.innerHTML='<div class="empty">No matches.</div>'; return; }
+  box.innerHTML=list.map(e=>{
+    const els=usedElsewhere(e.id,date,room); const has=inRoom.has(e.id);
+    return '<div class="dm-row"><div class="dm-main"><div class="dm-name">'+esc(e.name)+(e.src==='hired'?' <span class="tag-h">Hired</span>':'')+'</div>'
+      + '<div class="dm-sub">'+esc([e.code,e.mfr].filter(Boolean).join(' · '))+'</div>'
+      + (els.length?'<div class="dm-warn">Also in '+esc(els.join(', '))+' that day</div>':'')+'</div>'
+      + '<button class="btn btn-sm" data-add="'+esc(e.id)+'"'+(has?' disabled':'')+'>'+(has?'Added':'Add')+'</button></div>';
+  }).join('') + (total>40?'<div class="empty">Showing 40 of '+total+' — type to narrow it down.</div>':'');
+}
+
+/* ============ PRINT / PDF ============
+   Opens a clean printable page; use the browser's print dialog and choose "Save as PDF". */
+const PRINT_CSS =
+  'body{font-family:Arial,sans-serif;color:#222;padding:28px;}'
+  +'h1{margin:0 0 2px;font-size:24px;} .sub{color:#666;font-size:12px;margin-bottom:18px;}'
+  +'h2{font-size:15px;margin:22px 0 6px;border-bottom:2px solid #333;padding-bottom:4px;}'
+  +'h3{font-size:14px;margin:0 0 2px;} .meta{font-size:12px;color:#555;margin-bottom:6px;}'
+  +'.blk{margin-bottom:18px;page-break-inside:avoid;}'
+  +'table{width:100%;border-collapse:collapse;font-size:11.5px;}'
+  +'th{text-align:left;background:#f2f2f2;padding:5px 7px;border-bottom:2px solid #ccc;text-transform:uppercase;font-size:10px;letter-spacing:.03em;}'
+  +'td{padding:5px 7px;border-bottom:1px solid #e2e2e2;vertical-align:top;}'
+  +'.flag{color:#b3261e;font-weight:bold;} .warn{color:#8a6d00;font-weight:bold;} .none{color:#888;font-size:12px;padding:4px 0;}'
+  +'.tag{font-size:10px;border:1px solid #7a6ad0;color:#5b4bb5;border-radius:3px;padding:0 4px;margin-left:4px;}';
+
+function openPrintWindow(title,body){
+  const w=window.open('','_blank','width=900,height=1000');
+  if(!w){ toast('Pop-up blocked — allow pop-ups for this site, then try again'); return; }
+  w.document.write('<html><head><title>'+esc(title)+'</title><style>'+PRINT_CSS+'</style></head><body>'+body+'<script>setTimeout(function(){window.print();},400);<\/script></body></html>');
+  w.document.close();
+}
+function pdfTable(list){
+  const rows=list.slice().sort((a,b)=>{ const ea=equipMap[a.equipId]||{}, eb=equipMap[b.equipId]||{};
+      return byName(ea.cat,eb.cat)||byName(eqName(a),eqName(b)); })
+    .map(b=>{
+      const e=equipMap[b.equipId]; const info=conflictIds[b.id]; const q=parseInt(b.qty)||1;
+      const hiredTag=String(b.equipId).indexOf('h-')===0?'<span class="tag">HIRED</span>':'';
+      const flag=info?'<span class="'+(info.level==='bad'?'flag">⚠ ':'warn">! ')+esc(info.msg)+'</span>':'';
+      return '<tr><td>'+esc(eqName(b))+hiredTag+'</td><td>'+esc(e?e.cat:'')+'</td><td>'+esc(eqSub(b))+'</td><td>'+q+'</td><td>'+flag+'</td></tr>';
+    }).join('');
+  return '<table><thead><tr><th>Item</th><th>Category</th><th>Details</th><th>Qty</th><th>Flag</th></tr></thead><tbody>'+rows+'</tbody></table>';
+}
+function pdfMeta(rd){
+  const bits=[]; if(rd.event) bits.push('<b>Event:</b> '+esc(rd.event)); if(rd.layout) bits.push('<b>Layout:</b> '+esc(rd.layout));
+  return bits.length?'<div class="meta">'+bits.join(' &nbsp;·&nbsp; ')+'</div>':'';
+}
+function printRoomMonth(room,ym){
+  computeConflicts(); buildCellMap();
+  const n=daysInMonth(ym); let blocks='', days=0, items=0, flagged=0;
+  for(let d=1; d<=n; d++){
+    const date=ym+'-'+String(d).padStart(2,'0');
+    const list=cellMap[room+'|'+date]||[]; const rd=roomDays[rdKey(room,date)]||{};
+    if(!list.length&&!rd.event&&!rd.layout) continue;
+    days++; items+=list.length; flagged+=list.filter(b=>conflictIds[b.id]).length;
+    blocks+='<div class="blk"><h3>'+esc(fmtLong(date))+'</h3>'+pdfMeta(rd)+(list.length?pdfTable(list):'<div class="none">No equipment assigned</div>')+'</div>';
+  }
+  if(!blocks) blocks='<div class="none">Nothing planned for this room in '+esc(monthLabel(ym))+'.</div>';
+  const sub=esc(monthLabel(ym))+' · '+days+' day'+(days===1?'':'s')+' planned · '+items+' booking'+(items===1?'':'s')
+    +(flagged?' · <span class="flag">⚠ '+flagged+' flagged</span>':'')+' · generated '+esc(new Date().toLocaleString('en-GB'));
+  openPrintWindow(room+' — '+monthLabel(ym),'<h1>'+esc(room)+'</h1><div class="sub">'+sub+'</div>'+blocks);
+}
+function printDay(date){
+  computeConflicts(); buildCellMap();
+  let hireRows='';
+  Object.keys(hired).forEach(k=>{ const h=hired[k]||{}; const q=Math.max(1,parseInt(h.quantity)||1);
+    if(h.deliveryDate===date) hireRows+='<tr><td>Delivery</td><td>'+esc(h.deliveryTime||'')+'</td><td>'+esc(h.name||'')+(q>1?' ×'+q:'')+'</td><td>'+esc(h.supplier||'')+'</td><td>'+esc(h.notes||'')+'</td></tr>';
+    if(h.collectionDate===date) hireRows+='<tr><td>Collection</td><td>'+esc(h.collectionTime||'')+'</td><td>'+esc(h.name||'')+(q>1?' ×'+q:'')+'</td><td>'+esc(h.supplier||'')+'</td><td>'+esc(h.notes||'')+'</td></tr>'; });
+  let body='', rooms=0, items=0, flagged=0;
+  if(hireRows) body+='<h2>Hired equipment — deliveries &amp; collections</h2><table><thead><tr><th>Type</th><th>Time</th><th>Item</th><th>Supplier</th><th>Notes</th></tr></thead><tbody>'+hireRows+'</tbody></table>';
+  ROOMS.forEach(room=>{
+    const list=cellMap[room+'|'+date]||[]; const rd=roomDays[rdKey(room,date)]||{};
+    if(!list.length&&!rd.event&&!rd.layout) return;
+    rooms++; items+=list.length; flagged+=list.filter(b=>conflictIds[b.id]).length;
+    body+='<div class="blk"><h2>'+esc(room)+'</h2>'+pdfMeta(rd)+(list.length?pdfTable(list):'<div class="none">No equipment assigned</div>')+'</div>';
+  });
+  if(!rooms&&!hireRows) body='<div class="none">Nothing planned for this date.</div>';
+  const sub=rooms+' room'+(rooms===1?'':'s')+' in use · '+items+' booking'+(items===1?'':'s')
+    +(flagged?' · <span class="flag">⚠ '+flagged+' flagged</span>':'')+' · generated '+esc(new Date().toLocaleString('en-GB'));
+  openPrintWindow('Equipment list — '+fmtShort(date),'<h1>Equipment list — '+esc(fmtLong(date))+'</h1><div class="sub">'+sub+'</div>'+body);
+}
+function openPrintModal(){
+  const day=(todayISO().slice(0,7)===viewMonth)? todayISO() : viewMonth+'-01';
+  openModal('<div class="modal-head"><h2>Print / save as PDF</h2><button class="close-x" data-close>✕</button></div>'
+    + '<div class="modal-body">'
+    + '<div class="section-label" style="margin-top:0;">One room, whole month</div>'
+    + '<div class="form-grid"><div class="field"><label>Room</label><select id="pm-room">'+ROOMS.map(r=>'<option value="'+esc(r)+'"'+(r===currentRoom?' selected':'')+'>'+esc(r)+'</option>').join('')+'</select></div>'
+    + '<div class="field"><label>Month</label><input id="pm-month" type="month" value="'+esc(viewMonth)+'"></div></div>'
+    + '<button class="btn btn-primary" id="pm-room-go">Open room plan</button>'
+    + '<div class="section-label">One day, all rooms</div>'
+    + '<div class="form-grid"><div class="field"><label>Date</label><input id="pm-day" type="date" value="'+esc(day)+'"></div></div>'
+    + '<button class="btn btn-primary" id="pm-day-go">Open day equipment list</button>'
+    + '<div class="m-sub" style="margin-top:14px;">A print page opens — choose “Save as PDF” as the destination.</div></div>');
+  $('pm-room-go').onclick=()=>{ const ym=$('pm-month').value; if(!/^\d{4}-\d{2}$/.test(ym)){ toast('Pick a month'); return; } printRoomMonth($('pm-room').value,ym); };
+  $('pm-day-go').onclick=()=>{ const d=$('pm-day').value; if(!d){ toast('Pick a date'); return; } printDay(d); };
+}
+
+function openConflictModal(){
+  computeConflicts();
+  let body='';
+  if(!conflicts.length) body='<div class="empty">No clashes or hire warnings anywhere. Nice.</div>';
+  let lastMonth='';
+  conflicts.forEach(c=>{
+    const m=c.date.slice(0,7);
+    if(m!==lastMonth){ body+='<div class="cf-month">'+esc(monthLabel(m))+'</div>'; lastMonth=m; }
+    body+='<div class="cf-row '+c.type+'" data-room="'+esc(c.rooms[0])+'" data-date="'+c.date+'"><div class="cf-date">'+esc(fmtShort(c.date))+'</div><div><div class="cf-t">'+esc(c.name)+'</div><div class="cf-m">'+esc(c.text)+'</div></div></div>';
+  });
+  openModal('<div class="modal-head"><div><h2>Clashes &amp; warnings</h2><div class="m-sub">Click one to jump to it</div></div><button class="close-x" data-close>✕</button></div><div class="modal-body">'+body+'</div>');
+}
+
+function openHiredModal(opts){
+  opts=opts||{}; const editing=opts.id?hired[opts.id]:null; const h=editing||{};
+  const delD=h.deliveryDate||opts.date||''; const colD=h.collectionDate||opts.date||'';
+  const ctx=(!editing&&opts.room&&opts.date)? '<div class="m-sub">Adding to '+esc(opts.room)+' · '+esc(fmtShort(opts.date))+'</div>' : '';
+  openModal('<div class="modal-head"><div><h2>'+(editing?'Edit hired equipment':'Hired equipment')+'</h2>'+ctx+'</div><button class="close-x" data-close>✕</button></div>'
+    + '<div class="modal-body"><div class="form-grid">'
+    + '<div class="field span2"><label>What is it? *</label><input id="hm-name" value="'+esc(h.name||'')+'" placeholder="e.g. Shure SM58 handheld microphones"></div>'
+    + '<div class="field"><label>Supplier *</label><input id="hm-supplier" value="'+esc(h.supplier||'')+'" placeholder="e.g. Orbital Sound"></div>'
+    + '<div class="field"><label>Quantity</label><input id="hm-qty" type="number" min="1" value="'+esc(h.quantity||1)+'"></div>'
+    + '<div class="field"><label>Delivery date *</label><input id="hm-deld" type="date" value="'+esc(delD)+'"></div>'
+    + '<div class="field"><label>Delivery time *</label><input id="hm-delt" type="time" value="'+esc(h.deliveryTime||'')+'"></div>'
+    + '<div class="field"><label>Collection date *</label><input id="hm-cold" type="date" value="'+esc(colD)+'"></div>'
+    + '<div class="field"><label>Collection time *</label><input id="hm-colt" type="time" value="'+esc(h.collectionTime||'')+'"></div>'
+    + '<div class="field span2"><label>Notes</label><textarea id="hm-notes" rows="2" placeholder="Order number, contact, delivery instructions…">'+esc(h.notes||'')+'</textarea></div></div>'
+    + '<div class="modal-actions"><button class="btn" id="hm-cancel">Cancel</button><button class="btn btn-primary" id="hm-save">'+(editing?'Save changes':'Save hired item')+'</button></div></div>');
+  const back=()=>{ closeModal(); if(opts.fromDay) openDayModal(opts.room,opts.date); };
+  $('hm-cancel').onclick=back;
+  $('hm-save').onclick=()=>{
+    if(!db){ toast('Not connected — changes won’t be saved'); return; }
+    const rec={ name:$('hm-name').value.trim(), supplier:$('hm-supplier').value.trim(), quantity:Math.max(1,parseInt($('hm-qty').value)||1),
+      deliveryDate:$('hm-deld').value, deliveryTime:$('hm-delt').value, collectionDate:$('hm-cold').value, collectionTime:$('hm-colt').value, notes:$('hm-notes').value.trim() };
+    if(!rec.name||!rec.supplier){ toast('Say what it is and who the supplier is'); return; }
+    if(!rec.deliveryDate||!rec.deliveryTime||!rec.collectionDate||!rec.collectionTime){ toast('Delivery and collection need a date and a time'); return; }
+    if((rec.collectionDate+' '+rec.collectionTime)<(rec.deliveryDate+' '+rec.deliveryTime)){ toast('Collection can’t be before delivery'); return; }
+    if(editing){ db.ref('planner/hired/'+opts.id).set(rec).catch(fail); toast('Updated '+rec.name); }
+    else{
+      const ref=db.ref('planner/hired').push(); ref.set(rec).catch(fail);
+      if(opts.room&&opts.date) addBooking('h-'+ref.key,opts.room,opts.date,{name:rec.name,qty:rec.quantity,code:'',status:''});
+      else toast('Added '+rec.name+' to the hired list');
+    }
+    back();
+  };
+}
+
+function openExtraModal(id){
+  const key=id?id.slice(2):null; const e=key?(extra[key]||{}):{};
+  openModal('<div class="modal-head"><h2>'+(key?'Edit equipment':'Add equipment')+'</h2><button class="close-x" data-close>✕</button></div>'
+    + '<div class="modal-body"><div class="form-grid">'
+    + '<div class="field span2"><label>Name / model *</label><input id="xm-model" value="'+esc(e.model||'')+'" placeholder="e.g. Behringer X32 Rack"></div>'
+    + '<div class="field"><label>Manufacturer</label><input id="xm-mfr" value="'+esc(e.manufacturer||'')+'"></div>'
+    + '<div class="field"><label>Category</label><input id="xm-cat" list="catList" value="'+esc(e.category||'')+'" placeholder="e.g. Sound"></div>'
+    + '<div class="field"><label>Quantity owned</label><input id="xm-qty" type="number" min="1" value="'+esc(e.quantity||1)+'"></div></div>'
+    + '<div class="item-sub" style="font-size:11.5px;color:var(--text-faint);">Added here only — this doesn’t change the inventory app.</div>'
+    + '<div class="modal-actions"><button class="btn" data-close>Cancel</button><button class="btn btn-primary" id="xm-save">'+(key?'Save changes':'Add equipment')+'</button></div></div>');
+  $('xm-save').onclick=()=>{
+    if(!db){ toast('Not connected — changes won’t be saved'); return; }
+    const rec={ model:$('xm-model').value.trim(), manufacturer:$('xm-mfr').value.trim(), category:$('xm-cat').value.trim()||'Other', quantity:Math.max(1,parseInt($('xm-qty').value)||1) };
+    if(!rec.model){ toast('Give it a name'); return; }
+    if(key) db.ref('planner/extra/'+key).set(rec).catch(fail); else db.ref('planner/extra').push().set(rec).catch(fail);
+    toast((key?'Updated ':'Added ')+rec.model); closeModal();
+  };
+}
+
+/* ============ EVENTS ============ */
+function dropTarget(e){ return e.target.closest ? e.target.closest('.day-cell[data-date], td.c[data-date]') : null; }
+function clearDropOver(){ document.querySelectorAll('.drop-over').forEach(x=>x.classList.remove('drop-over')); }
+function handleDrop(p,room,date){
+  if(!p||!date) return;
+  if(p.kind==='equip') addBooking(p.id,room,date);
+  else if(p.kind==='newhired') openHiredModal({room:room,date:date});
+  else if(p.kind==='booking') moveBooking(p.id,room,date);
+}
+function bindMain(){
+  const main=$('main');
+  main.addEventListener('click',e=>{
+    const del=e.target.closest('[data-del]'); if(del){ const bk=del.closest('.bk'); if(bk) removeBooking(bk.dataset.bid); return; }
+    const man=e.target.closest('[data-manage]'); if(man){ const c=man.closest('.day-cell'); openDayModal(c.dataset.room,c.dataset.date); return; }
+    const oc=e.target.closest('td.c'); if(oc){ gotoRoomDay(oc.dataset.room,oc.dataset.date); return; }
+    const rn=e.target.closest('th.rn'); if(rn){ currentRoom=rn.dataset.room; view='room'; renderMain(); }
+  });
+  main.addEventListener('change',e=>{
+    const inp=e.target.closest('input[data-field]'); if(!inp) return;
+    const c=inp.closest('.day-cell'); saveRoomDay(c.dataset.room,c.dataset.date,inp.dataset.field,inp.value);
+  });
+  main.addEventListener('dragstart',e=>{
+    const bk=e.target.closest&&e.target.closest('.bk'); if(!bk) return;
+    dragKind='booking'; e.dataTransfer.setData('text/plain',JSON.stringify({kind:'booking',id:bk.dataset.bid})); e.dataTransfer.effectAllowed='move';
+  });
+  main.addEventListener('dragover',e=>{
+    const t=dropTarget(e); if(!t) return;
+    e.preventDefault(); e.dataTransfer.dropEffect = dragKind==='booking' ? 'move' : 'copy';
+    if(!t.classList.contains('drop-over')){ clearDropOver(); t.classList.add('drop-over'); }
+  });
+  main.addEventListener('dragleave',e=>{ const t=dropTarget(e); if(t && !t.contains(e.relatedTarget)) t.classList.remove('drop-over'); });
+  main.addEventListener('drop',e=>{
+    const t=dropTarget(e); if(!t) return;
+    e.preventDefault(); clearDropOver();
+    let p=null; try{ p=JSON.parse(e.dataTransfer.getData('text/plain')); }catch(_){ return; }
+    handleDrop(p,t.dataset.room,t.dataset.date);
+  });
+  document.addEventListener('dragend',()=>{ clearDropOver(); dragKind=''; });
+}
+function bindPalette(){
+  $('palSearch').oninput=e=>{ palSearch=e.target.value; renderPalList(); };
+  $('palChips').addEventListener('click',e=>{ const c=e.target.closest('[data-cat]'); if(!c) return; palCat=c.dataset.cat; renderPalChips(); renderPalList(); });
+  document.querySelectorAll('[data-ptab]').forEach(b=>b.onclick=()=>{
+    palTab=b.dataset.ptab;
+    document.querySelectorAll('[data-ptab]').forEach(x=>x.classList.toggle('active',x===b));
+    $('kitControls').style.display=palTab==='kit'?'':'none'; $('hiredControls').style.display=palTab==='hired'?'':'none';
+    renderPalList();
+  });
+  $('addEquipBtn').onclick=()=>openExtraModal(null);
+  $('addHiredBtn').onclick=()=>openHiredModal({});
+  const tile=$('hiredTile');
+  tile.addEventListener('dragstart',e=>{ dragKind='newhired'; e.dataTransfer.setData('text/plain',JSON.stringify({kind:'newhired'})); e.dataTransfer.effectAllowed='copy'; });
+  tile.addEventListener('click',()=>openHiredModal({}));
+  const list=$('palList');
+  list.addEventListener('dragstart',e=>{
+    const r=e.target.closest&&e.target.closest('.pal-row'); if(!r) return;
+    dragKind='equip'; e.dataTransfer.setData('text/plain',JSON.stringify({kind:'equip',id:r.dataset.eid})); e.dataTransfer.effectAllowed='copy';
+  });
+  list.addEventListener('click',e=>{
+    const ed=e.target.closest('[data-edit]'); if(ed){ const id=ed.dataset.edit; if(id.indexOf('h-')===0) openHiredModal({id:id.slice(2)}); else openExtraModal(id); return; }
+    const del=e.target.closest('[data-delete]'); if(del) deleteEquip(del.dataset.delete);
+  });
+}
+function bindModal(){
+  const ov=$('overlay');
+  ov.addEventListener('click',e=>{
+    if(e.target.id==='overlay'){ closeModal(); return; }
+    if(e.target.closest('[data-close]')){ closeModal(); return; }
+    const cf=e.target.closest('.cf-row'); if(cf){ gotoRoomDay(cf.dataset.room,cf.dataset.date); return; }
+    const rm=e.target.closest('[data-rm]'); if(rm){ removeBooking(rm.dataset.rm); return; }
+    const add=e.target.closest('[data-add]'); if(add&&dayModal&&!add.disabled) addBooking(add.dataset.add,dayModal.room,dayModal.date);
+  });
+  ov.addEventListener('change',e=>{
+    const q=e.target.closest('[data-qty]'); if(!q||!db) return;
+    const n=Math.max(1,parseInt(q.value)||1); db.ref('planner/bookings/'+q.dataset.qty+'/qty').set(n).catch(fail);
+  });
+  document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&ov.classList.contains('active')) closeModal(); });
+}
+
+/* ============ FIREBASE ============ */
+function markLoaded(k){ loaded[k]=true; if(allLoaded()){ setStatus('Live · synced with your team'); renderMain(); } }
+function connect(){
+  if(typeof firebase==='undefined'){ setStatus('Couldn’t load Firebase — check your connection','err'); return; }
+  try{ firebase.initializeApp(firebaseConfig); db=firebase.database(); }
+  catch(e){ console.error(e); setStatus('Firebase failed to start','err'); return; }
+  const connErr=err=>{ console.error(err); setStatus('Connection error — check the Firebase database rules','err'); };
+  db.ref('.info/connected').on('value',s=>{ if(s.val()===false && Object.keys(loaded).length) setStatus('Offline — will re-sync when back online','err'); else if(s.val()===true && allLoaded()) setStatus('Live · synced with your team'); });
+  db.ref('items').on('value',snap=>{
+    const v=snap.val(); const arr=v?(Array.isArray(v)?v:Object.values(v)):[];
+    const clean=arr.filter(it=>it&&it.id).map(normInv);
+    inventory=clean.length?clean:SEED_ITEMS.map(normInv);
+    libChanged(); markLoaded('items');
+  },err=>{ console.error(err); inventory=SEED_ITEMS.map(normInv); libChanged(); toast('Couldn’t read the live inventory — using the built-in list'); markLoaded('items'); });
+  db.ref('planner/extra').on('value',snap=>{ extra=snap.val()||{}; libChanged(); markLoaded('extra'); },connErr);
+  db.ref('planner/hired').on('value',snap=>{ hired=snap.val()||{}; libChanged(); markLoaded('hired'); },connErr);
+  db.ref('planner/bookings').on('value',snap=>{ bookings=snap.val()||{}; scheduleRender(); markLoaded('bookings'); },connErr);
+  db.ref('planner/roomDays').on('value',snap=>{ roomDays=snap.val()||{}; patchRoomDays(); markLoaded('roomDays'); },connErr);
+}
+
+/* ============ INIT / LOCK ============ */
+function init(){
+  $('roomSel').innerHTML=ROOMS.map(r=>'<option value="'+esc(r)+'">'+esc(r)+'</option>').join('');
+  $('roomSel').onchange=()=>{ currentRoom=$('roomSel').value; renderMain(); };
+  $('prevMonth').onclick=()=>{ viewMonth=addMonths(viewMonth,-1); renderMain(); };
+  $('nextMonth').onclick=()=>{ viewMonth=addMonths(viewMonth,1); renderMain(); };
+  $('todayBtn').onclick=()=>{ viewMonth=todayISO().slice(0,7); renderMain(); };
+  $('monthPick').onchange=e=>{ if(/^\d{4}-\d{2}$/.test(e.target.value)){ viewMonth=e.target.value; renderMain(); } };
+  document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{ view=b.dataset.view; renderMain(); });
+  $('conflictBtn').onclick=openConflictModal;
+  $('printBtn').onclick=openPrintModal;
+  bindPalette(); bindMain(); bindModal();
+  rebuildLib(); renderPalChips(); renderPalList(); renderMain();
+  connect();
+}
+function showApp(){ $('lockScreen').style.display='none'; $('app').style.display=''; init(); }
+function tryUnlock(){
+  if($('lockPassword').value===SITE_PASSWORD){
+    try{ sessionStorage.setItem(UNLOCK_KEY,'yes'); }catch(e){}
+    $('lockError').classList.remove('show'); showApp();
+  }else{
+    $('lockError').classList.add('show'); $('lockPassword').value=''; $('lockPassword').focus();
+  }
+}
+$('lockSubmit').onclick=tryUnlock;
+$('lockPassword').addEventListener('keydown',e=>{ if(e.key==='Enter') tryUnlock(); });
+let unlocked=false; try{ unlocked=sessionStorage.getItem(UNLOCK_KEY)==='yes'; }catch(e){}
+if(unlocked) showApp(); else $('lockPassword').focus();
+</script>
+</body>
+</html>
